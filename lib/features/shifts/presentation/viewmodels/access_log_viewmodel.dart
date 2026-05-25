@@ -1,0 +1,110 @@
+import 'package:flutter/foundation.dart';
+import 'package:app/features/shifts/domain/models/access_log.dart';
+import 'package:app/features/shifts/domain/repositories/access_log_repository.dart';
+
+class AccessLogViewModel extends ChangeNotifier {
+  final AccessLogRepository repository;
+
+  AccessLogViewModel({required this.repository});
+
+  List<AccessLog> _logs = [];
+  List<AccessLog> get logs => _logs;
+
+  bool _isLoading = false;
+  bool get isLoading => _isLoading;
+
+  String? _error;
+  String? get error => _error;
+
+  Future<void> loadLogs() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      _logs = await repository.getLogs();
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> createLog(AccessLog log) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final newLog = await repository.createLog(log);
+      _logs.insert(0, newLog);
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+  Future<bool> registerAccess({
+    required int? idUser,
+    required int? idVisitor,
+    required int idGuard,
+    String? notes,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      // Refresh logs to get the latest state
+      _logs = await repository.getLogs();
+
+      // Find the latest log for this person
+      AccessLog? latestLog;
+      
+      final personLogs = _logs.where((log) {
+        if (idUser != null) return log.idUser == idUser;
+        if (idVisitor != null) return log.idVisitor == idVisitor;
+        return false;
+      }).toList();
+
+      if (personLogs.isNotEmpty) {
+        // Sort descending to get the most recent first
+        personLogs.sort((a, b) => b.timestampEvent.compareTo(a.timestampEvent));
+        latestLog = personLogs.first;
+      }
+
+      // Determine the next event type
+      String nextEventType = 'entry';
+      if (latestLog != null && latestLog.eventType == 'entry') {
+        nextEventType = 'exit';
+      }
+
+      final newLog = AccessLog(
+        id: 0,
+        idUser: idUser,
+        idVisitor: idVisitor,
+        idGuard: idGuard,
+        eventType: nextEventType,
+        timestampEvent: DateTime.now(),
+        notes: notes,
+      );
+
+      final createdLog = await repository.createLog(newLog);
+      _logs.insert(0, createdLog);
+      
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+}
