@@ -1,36 +1,50 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:app/core/config/api_config.dart';
+import 'package:provider/provider.dart';
 import 'package:app/features/auth/presentation/viewmodels/auth_viewmodel.dart';
+import 'package:app/features/user/presentation/viewmodels/user_viewmodel.dart';
 
-class UserListTab extends StatelessWidget {
+class UserListTab extends StatefulWidget {
   final AuthViewModel authVM;
   final String role;
 
   const UserListTab({super.key, required this.authVM, required this.role});
 
   @override
+  State<UserListTab> createState() => _UserListTabState();
+}
+
+class _UserListTabState extends State<UserListTab> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final orgId = widget.authVM.user?.idOrganization;
+      if (orgId != null) {
+        Provider.of<UserViewModel>(context, listen: false).loadEmployees(orgId);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final orgId = authVM.user?.idOrganization;
+    final orgId = widget.authVM.user?.idOrganization;
 
     if (orgId == null) {
       return const Center(child: Text('Debes tener una organización asociada para ver los empleados.'));
     }
 
-    return FutureBuilder<List<dynamic>>(
-      future: _fetchEmployees(orgId, authVM.user!.idToken),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+    return Consumer<UserViewModel>(
+      builder: (context, userVM, child) {
+        if (userVM.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (snapshot.hasError) {
-          return Center(child: Text('Error al cargar personal: ${snapshot.error}'));
+        if (userVM.error != null) {
+          return Center(child: Text(userVM.error!));
         }
 
-        final employees = snapshot.data;
-        if (employees == null || employees.isEmpty) {
+        final employees = userVM.employees;
+        if (employees.isEmpty) {
           return const Center(child: Text('No hay empleados registrados en tu organización todavía.'));
         }
 
@@ -39,8 +53,8 @@ class UserListTab extends StatelessWidget {
           itemCount: employees.length,
           itemBuilder: (context, index) {
             final emp = employees[index];
-            final empRole = (emp['role'] ?? 'empleado').toString();
-            final empMail = emp['mail'];
+            final empRole = emp.role;
+            final empMail = emp.email;
 
             IconData badgeIcon = Icons.badge_rounded;
             Color badgeColor = Colors.grey;
@@ -68,7 +82,7 @@ class UserListTab extends StatelessWidget {
                   child: Icon(badgeIcon, color: badgeColor),
                 ),
                 title: Text(
-                  emp['name'] ?? 'Sin Nombre',
+                  emp.name,
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 subtitle: Column(
@@ -81,7 +95,7 @@ class UserListTab extends StatelessWidget {
                       children: [
                         const Icon(Icons.fingerprint, size: 12, color: Colors.grey),
                         const SizedBox(width: 4),
-                        Text('ID: ${emp['id']}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                        Text('ID: ${emp.id}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                       ],
                     ),
                   ],
@@ -103,16 +117,5 @@ class UserListTab extends StatelessWidget {
         );
       },
     );
-  }
-
-  Future<List<dynamic>> _fetchEmployees(int orgId, String token) async {
-    final url = Uri.parse('${ApiConfig.baseUrl}/users/');
-    final res = await http.get(url, headers: {'Authorization': 'Bearer $token'});
-    if (res.statusCode == 200) {
-      final List<dynamic> allUsers = jsonDecode(res.body);
-      return allUsers.where((u) => u['idOrganization'] == orgId).toList();
-    } else {
-      throw Exception('Error al obtener catálogo de personal: ${res.body}');
-    }
   }
 }

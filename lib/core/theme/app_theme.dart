@@ -1,28 +1,27 @@
 import 'package:flutter/material.dart';
 
-/// Tema global de la aplicación usando Material 3.
-/// Se utiliza un color semilla naranja oscuro como color principal.
 class AppTheme {
-  // Color principal de la aplicación
-  static const Color _seedColor = Color(0xFFE65100); // Deep Orange 900
+  static const Color _seedColor = Color(0xFF03A9F4);
 
-  /// Tema claro con Material 3
   static ThemeData get lightTheme {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: _seedColor,
       brightness: Brightness.light,
+      surface: Colors.white,
     );
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
+      scaffoldBackgroundColor: Colors.white,
       appBarTheme: AppBarTheme(
         centerTitle: true,
-        backgroundColor: colorScheme.primaryContainer,
-        foregroundColor: colorScheme.onPrimaryContainer,
+        backgroundColor: Colors.white,
+        foregroundColor: colorScheme.primary,
         elevation: 0,
       ),
       cardTheme: CardTheme(
+        color: Colors.white,
         elevation: 2,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -49,6 +48,8 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
+          backgroundColor: colorScheme.primary,
+          foregroundColor: colorScheme.onPrimary,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -64,7 +65,6 @@ class AppTheme {
     );
   }
 
-  /// Tema oscuro con Material 3
   static ThemeData get darkTheme {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: _seedColor,
@@ -107,6 +107,8 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
+          backgroundColor: colorScheme.primary,
+          foregroundColor: colorScheme.onPrimary,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),

@@ -4,7 +4,6 @@ import 'package:app/features/auth/domain/models/auth_user.dart';
 import 'package:app/core/config/api_config.dart';
 import 'package:http/http.dart' as http;
 
-/// Datasource remoto para autenticación con Google y correo/contraseña.
 class AuthRemoteDatasource {
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     clientId: '777549895961-o3vshogh18s3b2jesccn46n4btm01r72.apps.googleusercontent.com',
@@ -12,10 +11,8 @@ class AuthRemoteDatasource {
     scopes: ['email', 'profile'],
   );
   
-  // Instancia temporal para peticiones previas a login
   final http.Client _client = http.Client();
 
-  /// Login con correo y contraseña.
   Future<AuthUser?> signInWithEmail(String email, String password) async {
     final url = Uri.parse('${ApiConfig.baseUrl}/login');
     print('AuthRemoteDatasource: signInWithEmail -> POST $url');
@@ -44,7 +41,6 @@ class AuthRemoteDatasource {
     }
   }
 
-  /// Registro de nuevo usuario en la API.
   Future<AuthUser?> registerWithEmail({
     required String name,
     String? email,
@@ -69,7 +65,6 @@ class AuthRemoteDatasource {
     print('AuthRemoteDatasource: registerWithEmail -> Status Code: ${response.statusCode}, Body: ${response.body}');
 
     if (response.statusCode == 200 || response.statusCode == 201) {
-      // Iniciar sesión automáticamente. Si no hay correo, se inicia sesión usando el nombre.
       final loginIdentifier = (email != null && email.isNotEmpty) ? email : name;
       return signInWithEmail(loginIdentifier, password);
     } else {
@@ -77,7 +72,6 @@ class AuthRemoteDatasource {
     }
   }
 
-  /// Obtiene el listado de organizaciones activas.
   Future<List<Map<String, dynamic>>> getOrganizations() async {
     final url = Uri.parse('${ApiConfig.baseUrl}/organizations/');
     print('AuthRemoteDatasource: getOrganizations -> GET $url');
@@ -96,7 +90,6 @@ class AuthRemoteDatasource {
     }
   }
 
-  /// Ejecuta el flujo de login con Google y retorna un AuthUser con el ID token.
   Future<AuthUser?> signInWithGoogle() async {
     print('AuthRemoteDatasource: signInWithGoogle -> Iniciando flujo nativo de Google...');
     final GoogleSignInAccount? account = await _googleSignIn.signIn();
@@ -145,12 +138,10 @@ class AuthRemoteDatasource {
     }
   }
 
-  /// Cierra la sesión de Google.
   Future<void> signOut() async {
     await _googleSignIn.signOut();
   }
 
-  /// Verifica si ya hay una sesión activa (login silencioso).
   Future<AuthUser?> getCurrentUser() async {
     final GoogleSignInAccount? account =
         await _googleSignIn.signInSilently();

@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:app/features/auth/presentation/viewmodels/auth_viewmodel.dart';
 
-/// Pantalla de Login con Google Sign-In.
-/// Diseño atractivo con Material 3 usando gradientes y Cards.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 

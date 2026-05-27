@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:app/features/shifts/presentation/viewmodels/access_log_viewmodel.dart';
+import 'package:app/features/visitors/presentation/viewmodels/visitor_viewmodel.dart';
 import 'package:intl/intl.dart';
 
 class AccessLogListScreen extends StatefulWidget {
@@ -16,18 +17,26 @@ class _AccessLogListScreenState extends State<AccessLogListScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<AccessLogViewModel>(context, listen: false).loadLogs();
+      Provider.of<VisitorViewModel>(context, listen: false).loadVisitors();
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final visitorVM = Provider.of<VisitorViewModel>(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Registros de Acceso'),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => Navigator.pushNamed(context, '/access-logs/create'),
+            onPressed: () async {
+              await Navigator.pushNamed(context, '/access-logs/create');
+              if (!mounted) return;
+              Provider.of<AccessLogViewModel>(context, listen: false).loadLogs();
+              visitorVM.loadVisitors();
+            },
           ),
         ],
       ),
@@ -44,7 +53,10 @@ class _AccessLogListScreenState extends State<AccessLogListScreen> {
                 children: [
                   Text('Error: ${vm.error}'),
                   ElevatedButton(
-                    onPressed: () => vm.loadLogs(),
+                    onPressed: () {
+                      vm.loadLogs();
+                      visitorVM.loadVisitors();
+                    },
                     child: const Text('Reintentar'),
                   ),
                 ],
@@ -72,9 +84,11 @@ class _AccessLogListScreenState extends State<AccessLogListScreen> {
                       color: isEntry ? Colors.green : Colors.red,
                     ),
                   ),
-                  title: Text(isEntry ? 'Entrada' : 'Salida'),
+                  title: log.idUser != null
+                      ? Text('Empleado (ID: ${log.idUser})')
+                      : Text('Invitado: ${visitorVM.getVisitorName(log.idVisitor ?? 0)}'),
                   subtitle: Text(
-                    DateFormat('dd/MM/yyyy HH:mm').format(log.timestampEvent),
+                    '${isEntry ? 'Entrada' : 'Salida'} • ${DateFormat('dd/MM/yyyy HH:mm').format(log.timestampEvent)}',
                   ),
                   trailing: log.idUser != null 
                     ? const Tooltip(message: 'Empleado', child: Icon(Icons.person))

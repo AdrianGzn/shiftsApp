@@ -5,29 +5,23 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:app/core/config/api_config.dart';
 
-/// ViewModel para la funcionalidad de autenticación.
-/// Implementa el patrón MVVM usando ChangeNotifier + Provider.
-/// Gestiona el estado del usuario autenticado y las operaciones de login/logout.
 class AuthViewModel extends ChangeNotifier {
   final AuthRepository _authRepository;
 
   AuthViewModel({required AuthRepository authRepository})
       : _authRepository = authRepository;
 
-  // --- Estado ---
   AuthUser? _user;
   bool _isLoading = false;
   String? _errorMessage;
   List<Map<String, dynamic>> _organizations = [];
 
-  // --- Getters ---
   AuthUser? get user => _user;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _user != null;
   String? get errorMessage => _errorMessage;
   List<Map<String, dynamic>> get organizations => _organizations;
 
-  /// Intenta recuperar una sesión previa al iniciar la aplicación.
   Future<void> tryAutoLogin() async {
     _isLoading = true;
     notifyListeners();
@@ -42,7 +36,6 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Inicia sesión con correo y contraseña.
   Future<void> signInWithEmail(String email, String password) async {
     _isLoading = true;
     _errorMessage = null;
@@ -53,7 +46,7 @@ class AuthViewModel extends ChangeNotifier {
     } catch (e, stackTrace) {
       print('AuthViewModel: Error en signInWithEmail -> $e');
       print(stackTrace);
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _errorMessage = 'Nombre o contraseña no válidos';
       _user = null;
     }
 
@@ -61,7 +54,6 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Registra un usuario con los datos correspondientes.
   Future<void> registerWithEmail({
     required String name,
     String? email,
@@ -84,7 +76,7 @@ class AuthViewModel extends ChangeNotifier {
     } catch (e, stackTrace) {
       print('AuthViewModel: Error en registerWithEmail -> $e');
       print(stackTrace);
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _errorMessage = 'No se ha podido registrar el usuario. Inténtelo más tarde.';
       _user = null;
     }
 
@@ -92,7 +84,6 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Obtiene la lista de organizaciones activas.
   Future<void> fetchOrganizations() async {
     _isLoading = true;
     _errorMessage = null;
@@ -101,14 +92,13 @@ class AuthViewModel extends ChangeNotifier {
       _organizations = await _authRepository.getOrganizations();
     } catch (e) {
       print('AuthViewModel: Error fetching organizations: $e');
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _errorMessage = 'Servidor no disponible. Inténtelo más tarde.';
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  /// Asocia una organización al usuario autenticado (usado por el Administrador al crearla).
   Future<void> updateOrganizationId(int orgId) async {
     if (_user == null) return;
     _isLoading = true;
@@ -141,7 +131,7 @@ class AuthViewModel extends ChangeNotifier {
       }
     } catch (e) {
       print('AuthViewModel: Error updating user organization: $e');
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _errorMessage = 'No se han podido cambiar los datos del usuario.';
       rethrow;
     } finally {
       _isLoading = false;
@@ -149,7 +139,50 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  /// Inicia sesión con Google.
+  Future<void> updateProfile({String? name, String? email}) async {
+    if (_user == null) return;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final url = Uri.parse('${ApiConfig.baseUrl}/users/${_user!.id}');
+      print('AuthViewModel: updateProfile -> PUT $url');
+      final Map<String, dynamic> body = {};
+      if (name != null && name.isNotEmpty) body['name'] = name;
+      if (email != null && email.isNotEmpty) body['email'] = email;
+
+      final response = await http.put(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${_user!.idToken}',
+        },
+        body: jsonEncode(body),
+      );
+      print('AuthViewModel: updateProfile response -> Status ${response.statusCode}');
+      if (response.statusCode == 200) {
+        _user = AuthUser(
+          id: _user!.id,
+          email: email != null && email.isNotEmpty ? email : _user!.email,
+          displayName: name != null && name.isNotEmpty ? name : _user!.displayName,
+          photoUrl: _user!.photoUrl,
+          idToken: _user!.idToken,
+          role: _user!.role,
+          idOrganization: _user!.idOrganization,
+        );
+      } else {
+        throw Exception('Error al actualizar perfil: ${response.body}');
+      }
+    } catch (e) {
+      print('AuthViewModel: Error updating profile: $e');
+      _errorMessage = 'No se han podido cambiar los datos del usuario.';
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> signInWithGoogle() async {
     _isLoading = true;
     _errorMessage = null;
@@ -164,9 +197,13 @@ class AuthViewModel extends ChangeNotifier {
     } catch (e, stackTrace) {
       print('AuthViewModel: Error en signInWithGoogle -> $e');
       if (!e.toString().contains('NEEDS_REGISTRATION')) {
-        print(stackTrace); // No saturar el log si es un flujo normal de registro
+        print(stackTrace);
+        _errorMessage = 'No se pudo iniciar sesión con Google. Inténtelo más tarde.';
+      } else {
+        final msg = e.toString();
+        final idx = msg.indexOf('NEEDS_REGISTRATION');
+        _errorMessage = idx != -1 ? msg.substring(idx) : 'NEEDS_REGISTRATION';
       }
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
       _user = null;
     }
 
@@ -174,7 +211,6 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Cierra la sesión.
   Future<void> signOut() async {
     _isLoading = true;
     notifyListeners();
@@ -190,7 +226,6 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Limpia el mensaje de error.
   void clearError() {
     _errorMessage = null;
     notifyListeners();

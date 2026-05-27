@@ -3,8 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:app/features/auth/presentation/viewmodels/auth_viewmodel.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-/// Pantalla de Registro con soporte para selección de rol,
-/// correo opcional, y escaneo de código QR de organización.
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -183,7 +181,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         padding: const EdgeInsets.all(24),
                         child: Column(
                           children: [
-                            // Selector de Rol
                             DropdownButtonFormField<String>(
                               value: _selectedRole,
                               decoration: const InputDecoration(
@@ -241,7 +238,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               validator: (val) => val == null || val.isEmpty ? 'Requerido' : null,
                             ),
                             
-                            // Mostrar organización solo si no es Admin
                             if (_selectedRole != 'admin') ...[
                               const SizedBox(height: 16),
                               Consumer<AuthViewModel>(
@@ -308,7 +304,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                               orgId: _selectedOrgId,
                                             ).then((_) {
                                               if (authVM.isAuthenticated) {
-                                                Navigator.pop(context);
+                                                Navigator.of(context).popUntil((route) => route.isFirst);
                                               }
                                             });
                                           }
@@ -327,7 +323,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         onPressed: () {
                                           authVM.signInWithGoogle().then((_) {
                                             if (authVM.isAuthenticated) {
-                                              Navigator.pop(context);
+                                              Navigator.of(context).popUntil((route) => route.isFirst);
                                             }
                                           });
                                         },

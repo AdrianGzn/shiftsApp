@@ -1,5 +1,3 @@
-/// Modelo de dominio que representa al usuario autenticado.
-/// Contiene la información del perfil de Google y el token de sesión.
 class AuthUser {
   final String id;
   final String? email;

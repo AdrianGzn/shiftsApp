@@ -1,26 +1,42 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:app/core/config/api_config.dart';
+import 'package:provider/provider.dart';
 import 'package:app/features/auth/presentation/viewmodels/auth_viewmodel.dart';
+import 'package:app/features/organization/presentation/viewmodels/organization_viewmodel.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-class OrganizationTab extends StatelessWidget {
+class OrganizationTab extends StatefulWidget {
   final AuthViewModel authVM;
   final String role;
 
   const OrganizationTab({super.key, required this.authVM, required this.role});
 
   @override
+  State<OrganizationTab> createState() => _OrganizationTabState();
+}
+
+class _OrganizationTabState extends State<OrganizationTab> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final orgId = widget.authVM.user?.idOrganization;
+      if (orgId != null) {
+        Provider.of<OrganizationViewModel>(context, listen: false)
+            .loadOrganization(orgId);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    if (role == 'admin' && authVM.user?.idOrganization == null) {
-      return _CreateOrganizationForm(authVM: authVM);
+    if (widget.role == 'admin' && widget.authVM.user?.idOrganization == null) {
+      return _CreateOrganizationForm(authVM: widget.authVM);
     }
 
-    final orgId = authVM.user?.idOrganization;
+    final orgId = widget.authVM.user?.idOrganization;
     if (orgId == null) {
       return const Center(
         child: Padding(
@@ -30,18 +46,17 @@ class OrganizationTab extends StatelessWidget {
       );
     }
 
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _fetchOrgDetails(orgId, authVM.user!.idToken),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+    return Consumer<OrganizationViewModel>(
+      builder: (context, orgVM, child) {
+        if (orgVM.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (snapshot.hasError) {
-          return Center(child: Text('Error al cargar la organización: ${snapshot.error}'));
+        if (orgVM.error != null) {
+          return Center(child: Text(orgVM.error!));
         }
 
-        final org = snapshot.data;
+        final org = orgVM.organization;
         if (org == null) {
           return const Center(child: Text('No se encontraron detalles de la organización.'));
         }
@@ -61,14 +76,14 @@ class OrganizationTab extends StatelessWidget {
                       Icon(Icons.business_rounded, size: 60, color: colorScheme.primary),
                       const SizedBox(height: 16),
                       Text(
-                        org['name'] ?? 'Nombre no disponible',
+                        org.name,
                         style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
                       Chip(
                         label: Text(
-                          (org['type'] ?? 'otro').toString().toUpperCase(),
+                          org.type.toUpperCase(),
                           style: TextStyle(color: colorScheme.onSecondaryContainer, fontWeight: FontWeight.bold),
                         ),
                         backgroundColor: colorScheme.secondaryContainer,
@@ -77,19 +92,21 @@ class OrganizationTab extends StatelessWidget {
                       ListTile(
                         leading: const Icon(Icons.location_on_rounded),
                         title: const Text('Dirección'),
-                        subtitle: Text(org['address'] ?? 'Sin dirección'),
+                        subtitle: Text(org.address),
                       ),
                       ListTile(
                         leading: const Icon(Icons.date_range_rounded),
                         title: const Text('Miembro desde'),
-                        subtitle: Text(org['created_at'] != null ? org['created_at'].toString().split('T')[0] : 'Desconocido'),
+                        subtitle: Text(org.createdAt != null
+                            ? org.createdAt.toString().split(' ')[0].split('T')[0]
+                            : 'Desconocido'),
                       ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 24),
-              if (role == 'admin') ...[
+              if (widget.role == 'admin') ...[
                 Card(
                   elevation: 2,
                   color: Colors.white,
@@ -133,16 +150,6 @@ class OrganizationTab extends StatelessWidget {
       },
     );
   }
-
-  Future<Map<String, dynamic>> _fetchOrgDetails(int orgId, String token) async {
-    final url = Uri.parse('${ApiConfig.baseUrl}/organizations/$orgId');
-    final res = await http.get(url, headers: {'Authorization': 'Bearer $token'});
-    if (res.statusCode == 200) {
-      return jsonDecode(res.body);
-    } else {
-      throw Exception('Error al obtener organización: ${res.body}');
-    }
-  }
 }
 
 class _CreateOrganizationForm extends StatefulWidget {
@@ -159,7 +166,6 @@ class _CreateOrganizationFormState extends State<_CreateOrganizationForm> {
   final _nameController = TextEditingController();
   final _addressController = TextEditingController();
   String _selectedType = 'empresa';
-  bool _isSaving = false;
 
   @override
   void dispose() {
@@ -171,6 +177,7 @@ class _CreateOrganizationFormState extends State<_CreateOrganizationForm> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final orgVM = Provider.of<OrganizationViewModel>(context);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -233,7 +240,7 @@ class _CreateOrganizationFormState extends State<_CreateOrganizationForm> {
                       validator: (val) => val == null || val.isEmpty ? 'Requerido' : null,
                     ),
                     const SizedBox(height: 24),
-                    if (_isSaving)
+                    if (orgVM.isLoading)
                       const CircularProgressIndicator()
                     else
                       SizedBox(
@@ -242,55 +249,31 @@ class _CreateOrganizationFormState extends State<_CreateOrganizationForm> {
                         child: FilledButton.icon(
                           onPressed: () async {
                             if (_formKey.currentState!.validate()) {
-                              setState(() {
-                                _isSaving = true;
-                              });
-                              try {
-                                final orgUrl = Uri.parse('${ApiConfig.baseUrl}/organizations/');
-                                final res = await http.post(
-                                  orgUrl,
-                                  headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': 'Bearer ${widget.authVM.user!.idToken}',
-                                  },
-                                  body: jsonEncode({
-                                    'name': _nameController.text.trim(),
-                                    'type': _selectedType,
-                                    'address': _addressController.text.trim(),
-                                  }),
-                                );
+                              final created = await orgVM.createOrganization(
+                                name: _nameController.text.trim(),
+                                type: _selectedType,
+                                address: _addressController.text.trim(),
+                              );
 
-                                if (res.statusCode == 200 || res.statusCode == 201) {
-                                  final createdOrg = jsonDecode(res.body);
-                                  final orgId = createdOrg['id'] as int;
-                                  await widget.authVM.updateOrganizationId(orgId);
-
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Organización creada y asociada con éxito!'),
-                                        behavior: SnackBarBehavior.floating,
-                                      ),
-                                    );
-                                  }
-                                } else {
-                                  throw Exception('Error en respuesta de servidor: ${res.body}');
-                                }
-                              } catch (e) {
+                              if (created != null) {
+                                await widget.authVM.updateOrganizationId(created.id);
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Error al crear organización: $e'),
-                                      backgroundColor: Colors.red,
+                                    const SnackBar(
+                                      content: Text('Organización creada y asociada con éxito!'),
                                       behavior: SnackBarBehavior.floating,
                                     ),
                                   );
                                 }
-                              } finally {
-                                if (mounted) {
-                                  setState(() {
-                                    _isSaving = false;
-                                  });
+                              } else {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(orgVM.error ?? 'Servidor no disponible. Inténtelo más tarde.'),
+                                      backgroundColor: Colors.red,
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
                                 }
                               }
                             }

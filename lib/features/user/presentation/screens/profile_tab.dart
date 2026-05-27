@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:app/core/config/api_config.dart';
+import 'package:provider/provider.dart';
 import 'package:app/features/auth/presentation/viewmodels/auth_viewmodel.dart';
+import 'package:app/features/user/presentation/viewmodels/user_viewmodel.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class ProfileTab extends StatelessWidget {
@@ -31,7 +31,13 @@ class ProfileTab extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            TextButton.icon(
+              onPressed: () => _showEditProfileDialog(context, authVM),
+              icon: const Icon(Icons.edit),
+              label: const Text('Editar Perfil'),
+            ),
+            const SizedBox(height: 16),
 
             Card(
               elevation: 2,
@@ -132,38 +138,23 @@ class ProfileTab extends StatelessWidget {
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
               Navigator.pop(ctx);
-              try {
-                final url = Uri.parse('${ApiConfig.baseUrl}/users/${authVM.user!.id}');
-                final res = await http.delete(
-                  url,
-                  headers: {'Authorization': 'Bearer ${authVM.user!.idToken}'},
-                );
-                if (res.statusCode == 200) {
-                  await authVM.signOut();
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Tu cuenta ha sido eliminada.'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-                } else {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error al eliminar cuenta: ${res.body}'),
-                        backgroundColor: Colors.red,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
+              final userVM = Provider.of<UserViewModel>(context, listen: false);
+              final success = await userVM.deleteAccount(authVM.user!.id);
+              if (success) {
+                await authVM.signOut();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Tu cuenta ha sido eliminada.'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
                 }
-              } catch (e) {
+              } else {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Error: $e'),
+                      content: Text(userVM.error ?? 'No se ha podido eliminar la cuenta. Inténtelo más tarde.'),
                       backgroundColor: Colors.red,
                       behavior: SnackBarBehavior.floating,
                     ),
@@ -172,6 +163,76 @@ class ProfileTab extends StatelessWidget {
               }
             },
             child: const Text('Eliminar cuenta'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditProfileDialog(BuildContext context, AuthViewModel authVM) {
+    final nameController = TextEditingController(text: authVM.user?.displayName);
+    final emailController = TextEditingController(text: authVM.user?.email);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Editar Perfil'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Nombre',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Correo electrónico',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await authVM.updateProfile(
+                  name: nameController.text.trim(),
+                  email: emailController.text.trim(),
+                );
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Perfil actualizado con éxito.'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('No se han podido cambiar los datos del usuario.'),
+                      backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Guardar'),
           ),
         ],
       ),

@@ -3,9 +3,6 @@ import 'package:app/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:app/features/auth/domain/models/auth_user.dart';
 import 'package:app/features/auth/domain/repositories/auth_repository.dart';
 
-/// Implementación concreta del repositorio de autenticación.
-/// Coordina el datasource de Google con el ApiClient para
-/// inyectar el token en todas las peticiones HTTP.
 class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDatasource remoteDatasource;
   final ApiClient apiClient;
@@ -49,7 +46,6 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<AuthUser?> signInWithGoogle() async {
     final user = await remoteDatasource.signInWithGoogle();
     if (user != null) {
-      // Inyectar el token de Google en el cliente HTTP
       apiClient.setAuthToken(user.idToken);
     }
     return user;

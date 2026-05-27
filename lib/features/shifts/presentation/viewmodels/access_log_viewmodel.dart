@@ -24,7 +24,7 @@ class AccessLogViewModel extends ChangeNotifier {
     try {
       _logs = await repository.getLogs();
     } catch (e) {
-      _error = e.toString();
+      _error = 'Servidor no disponible. Inténtelo más tarde.';
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -43,12 +43,13 @@ class AccessLogViewModel extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = 'No se ha podido registrar la entrada o salida.';
       _isLoading = false;
       notifyListeners();
       return false;
     }
   }
+
   Future<bool> registerAccess({
     required int? idUser,
     required int? idVisitor,
@@ -60,10 +61,8 @@ class AccessLogViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Refresh logs to get the latest state
       _logs = await repository.getLogs();
 
-      // Find the latest log for this person
       AccessLog? latestLog;
       
       final personLogs = _logs.where((log) {
@@ -73,12 +72,10 @@ class AccessLogViewModel extends ChangeNotifier {
       }).toList();
 
       if (personLogs.isNotEmpty) {
-        // Sort descending to get the most recent first
         personLogs.sort((a, b) => b.timestampEvent.compareTo(a.timestampEvent));
         latestLog = personLogs.first;
       }
 
-      // Determine the next event type
       String nextEventType = 'entry';
       if (latestLog != null && latestLog.eventType == 'entry') {
         nextEventType = 'exit';
@@ -101,7 +98,7 @@ class AccessLogViewModel extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = 'No se ha podido registrar la entrada o salida.';
       _isLoading = false;
       notifyListeners();
       return false;

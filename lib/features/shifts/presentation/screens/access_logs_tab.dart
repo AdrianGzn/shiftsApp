@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:app/features/auth/presentation/viewmodels/auth_viewmodel.dart';
 import 'package:app/features/shifts/presentation/viewmodels/access_log_viewmodel.dart';
 import 'package:app/features/shifts/domain/models/access_log.dart';
+import 'package:app/features/visitors/presentation/viewmodels/visitor_viewmodel.dart';
 
 class AccessLogsTab extends StatelessWidget {
   final AuthViewModel authVM;
@@ -14,6 +15,7 @@ class AccessLogsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final logVM = Provider.of<AccessLogViewModel>(context);
+    final visitorVM = Provider.of<VisitorViewModel>(context);
 
     List<AccessLog> displayedLogs = logVM.logs;
     if (role == 'empleado') {
@@ -33,6 +35,7 @@ class AccessLogsTab extends StatelessWidget {
                 onPressed: () {
                   Navigator.pushNamed(context, '/access-logs/create').then((_) {
                     logVM.loadLogs();
+                    visitorVM.loadVisitors();
                   });
                 },
                 icon: const Icon(Icons.qr_code_scanner_rounded),
@@ -42,7 +45,10 @@ class AccessLogsTab extends StatelessWidget {
           ),
         Expanded(
           child: RefreshIndicator(
-            onRefresh: () => logVM.loadLogs(),
+            onRefresh: () async {
+              await logVM.loadLogs();
+              await visitorVM.loadVisitors();
+            },
             child: displayedLogs.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -99,17 +105,18 @@ class AccessLogsTab extends StatelessWidget {
                               if (role != 'empleado' && log.idUser != null)
                                 Text('ID Empleado: ${log.idUser}'),
                               if (log.idVisitor != null)
-                                Text('ID Visitante: ${log.idVisitor}'),
+                                Text(
+                                  'Invitado: ${visitorVM.getVisitorName(log.idVisitor!)}',
+                                  style: const TextStyle(fontWeight: FontWeight.w500),
+                                ),
                               Text(log.notes ?? 'Sin observaciones'),
                             ],
                           ),
-                          trailing: log.timestampEvent != null
-                              ? Text(
-                                  '${log.timestampEvent!.hour.toString().padLeft(2, '0')}:${log.timestampEvent!.minute.toString().padLeft(2, '0')}\n${log.timestampEvent!.day}/${log.timestampEvent!.month}',
-                                  textAlign: TextAlign.right,
-                                  style: theme.textTheme.bodySmall,
-                                )
-                              : null,
+                          trailing: Text(
+                            '${log.timestampEvent.hour.toString().padLeft(2, '0')}:${log.timestampEvent.minute.toString().padLeft(2, '0')}\n${log.timestampEvent.day}/${log.timestampEvent.month}',
+                            textAlign: TextAlign.right,
+                            style: theme.textTheme.bodySmall,
+                          ),
                         ),
                       );
                     },

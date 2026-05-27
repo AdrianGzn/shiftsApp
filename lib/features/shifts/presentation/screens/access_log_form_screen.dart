@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:app/features/shifts/presentation/viewmodels/access_log_viewmodel.dart';
 import 'package:app/features/auth/presentation/viewmodels/auth_viewmodel.dart';
+import 'package:app/features/visitors/presentation/viewmodels/visitor_viewmodel.dart';
+import 'package:app/features/visitors/domain/models/visitor.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'dart:convert';
+import 'package:app/features/visitors/presentation/screens/visitor_registration_dialog.dart';
 
 class AccessLogFormScreen extends StatefulWidget {
   const AccessLogFormScreen({super.key});
@@ -17,6 +20,9 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
   String _personType = 'empleado';
   final _idController = TextEditingController();
   final _notesController = TextEditingController();
+
+  TextEditingController? _visitorNameController;
+  Visitor? _selectedVisitor;
 
   @override
   void dispose() {
@@ -61,23 +67,37 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
                           if (data['type'] != null && data['id'] != null) {
                             setState(() {
                               _personType = data['type'] == 'visitor' ? 'visitante' : 'empleado';
-                              _idController.text = data['id'].toString();
+                              if (_personType == 'empleado') {
+                                _idController.text = data['id'].toString();
+                              } else {
+                                final visitorVM = Provider.of<VisitorViewModel>(context, listen: false);
+                                final visitorId = int.tryParse(data['id'].toString()) ?? 0;
+                                final visitorObj = visitorVM.visitorMap[visitorId];
+                                if (visitorObj != null) {
+                                  _selectedVisitor = visitorObj;
+                                  _visitorNameController?.text = visitorObj.fullName;
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Visitante con ID $visitorId no encontrado localmente.')),
+                                  );
+                                }
+                              }
                             });
                           } else {
-                            // Si no es JSON, asumimos que es el ID
                             setState(() {
+                              _personType = 'empleado';
                               _idController.text = code;
                             });
                           }
                         } catch (e) {
-                           // Fallback si no es JSON válido
-                           setState(() {
-                              _idController.text = code;
-                           });
+                          setState(() {
+                            _personType = 'empleado';
+                            _idController.text = code;
+                          });
                         }
                       }
                       if (mounted) {
-                        Navigator.pop(context); // Cierra el scanner
+                        Navigator.pop(context);
                       }
                     }
                   },
@@ -92,28 +112,35 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
     });
   }
 
+
+
   void _submit() async {
     if (_formKey.currentState!.validate()) {
       final authVM = Provider.of<AuthViewModel>(context, listen: false);
       final logVM = Provider.of<AccessLogViewModel>(context, listen: false);
 
       final idGuard = int.tryParse(authVM.user?.id ?? '0') ?? 0;
-      final personId = int.tryParse(_idController.text);
-
-      if (personId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Por favor, ingresa un ID válido')),
-        );
-        return;
-      }
 
       int? idUser;
       int? idVisitor;
       
       if (_personType == 'empleado') {
+        final personId = int.tryParse(_idController.text);
+        if (personId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Por favor, ingresa un ID válido')),
+          );
+          return;
+        }
         idUser = personId;
       } else {
-        idVisitor = personId;
+        if (_selectedVisitor == null || _visitorNameController?.text != _selectedVisitor!.fullName) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Por favor, selecciona un visitante válido de la lista o regístralo')),
+          );
+          return;
+        }
+        idVisitor = _selectedVisitor!.id;
       }
 
       final success = await logVM.registerAccess(
@@ -177,24 +204,111 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _idController,
-                decoration: InputDecoration(
-                  labelText: 'ID / Documento',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.qr_code_scanner),
-                    onPressed: _scanQR,
+              if (_personType == 'empleado') ...[
+                TextFormField(
+                  controller: _idController,
+                  decoration: InputDecoration(
+                    labelText: 'ID / Documento del Empleado',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.qr_code_scanner),
+                      onPressed: _scanQR,
+                    ),
                   ),
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Requerido';
+                    }
+                    if (int.tryParse(value) == null) {
+                      return 'ID debe ser un número entero';
+                    }
+                    return null;
+                  },
                 ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Requerido';
-                  }
-                  return null;
-                },
-              ),
+              ] else ...[
+                Consumer<VisitorViewModel>(
+                  builder: (context, visitorVM, child) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Autocomplete<Visitor>(
+                            optionsBuilder: (TextEditingValue textEditingValue) {
+                              if (textEditingValue.text.isEmpty) {
+                                return const Iterable<Visitor>.empty();
+                              }
+                              return visitorVM.visitors.where((Visitor option) {
+                                return option.fullName
+                                    .toLowerCase()
+                                    .contains(textEditingValue.text.toLowerCase());
+                              });
+                            },
+                            displayStringForOption: (Visitor option) => option.fullName,
+                            onSelected: (Visitor selection) {
+                              setState(() {
+                                _selectedVisitor = selection;
+                              });
+                            },
+                            fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
+                              _visitorNameController = textEditingController;
+                              return TextFormField(
+                                controller: textEditingController,
+                                focusNode: focusNode,
+                                decoration: const InputDecoration(
+                                  labelText: 'Buscar por Nombre del Visitante',
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.search),
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Requerido';
+                                  }
+                                  if (_selectedVisitor == null || _selectedVisitor!.fullName != value) {
+                                    return 'Selecciona un visitante de las sugerencias o créalo';
+                                  }
+                                  return null;
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: SizedBox(
+                            height: 48,
+                            width: 48,
+                            child: IconButton.filledTonal(
+                              onPressed: () async {
+                                final newVisitor = await showDialog<Visitor>(
+                                  context: context,
+                                  builder: (context) => const VisitorRegistrationDialog(),
+                                );
+                                if (newVisitor != null) {
+                                  setState(() {
+                                    _selectedVisitor = newVisitor;
+                                    _visitorNameController?.text = newVisitor.fullName;
+                                  });
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Visitante registrado y seleccionado correctamente'),
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              icon: const Icon(Icons.person_add_rounded),
+                              tooltip: 'Registrar Nuevo Visitante',
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
               const SizedBox(height: 16),
               TextFormField(
                 controller: _notesController,
