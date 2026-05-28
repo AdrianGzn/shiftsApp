@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app/features/organization/domain/models/organization.dart';
 import 'package:app/features/organization/domain/repositories/organization_repository.dart';
+import 'package:app/features/organization/presentation/screens/organization_status.dart';
 
 class OrganizationViewModel extends ChangeNotifier {
   final OrganizationRepository repository;
@@ -10,14 +11,15 @@ class OrganizationViewModel extends ChangeNotifier {
   Organization? _organization;
   Organization? get organization => _organization;
 
-  bool _isLoading = false;
-  bool get isLoading => _isLoading;
+  OrganizationStatus _status = OrganizationStatus.idle;
+  OrganizationStatus get status => _status;
+  bool get isLoading => _status == OrganizationStatus.loading;
 
   String? _error;
   String? get error => _error;
 
   Future<void> loadOrganization(int id) async {
-    _isLoading = true;
+    _status = OrganizationStatus.loading;
     _error = null;
     notifyListeners();
 
@@ -26,7 +28,7 @@ class OrganizationViewModel extends ChangeNotifier {
     } catch (e) {
       _error = 'Servidor no disponible. Inténtelo más tarde.';
     } finally {
-      _isLoading = false;
+      _status = _error != null ? OrganizationStatus.error : OrganizationStatus.success;
       notifyListeners();
     }
   }
@@ -36,7 +38,7 @@ class OrganizationViewModel extends ChangeNotifier {
     required String type,
     required String address,
   }) async {
-    _isLoading = true;
+    _status = OrganizationStatus.loading;
     _error = null;
     notifyListeners();
 
@@ -54,7 +56,7 @@ class OrganizationViewModel extends ChangeNotifier {
       _error = 'Servidor no disponible. Inténtelo más tarde.';
       return null;
     } finally {
-      _isLoading = false;
+      _status = _error != null ? OrganizationStatus.error : OrganizationStatus.success;
       notifyListeners();
     }
   }

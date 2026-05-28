@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:app/features/visitors/domain/models/visitor.dart';
 import 'package:app/features/visitors/domain/repositories/visitor_repository.dart';
+import 'package:app/features/visitors/presentation/screens/visitor_status.dart';
 
 class VisitorViewModel extends ChangeNotifier {
   final VisitorRepository repository;
@@ -13,14 +14,15 @@ class VisitorViewModel extends ChangeNotifier {
   final Map<int, Visitor> _visitorMap = {};
   Map<int, Visitor> get visitorMap => _visitorMap;
 
-  bool _isLoading = false;
-  bool get isLoading => _isLoading;
+  VisitorStatus _status = VisitorStatus.idle;
+  VisitorStatus get status => _status;
+  bool get isLoading => _status == VisitorStatus.loading;
 
   String? _error;
   String? get error => _error;
 
   Future<void> loadVisitors() async {
-    _isLoading = true;
+    _status = VisitorStatus.loading;
     _error = null;
     notifyListeners();
 
@@ -33,7 +35,7 @@ class VisitorViewModel extends ChangeNotifier {
     } catch (e) {
       _error = 'Servidor no disponible. Inténtelo más tarde.';
     } finally {
-      _isLoading = false;
+      _status = _error != null ? VisitorStatus.error : VisitorStatus.success;
       notifyListeners();
     }
   }
@@ -45,7 +47,7 @@ class VisitorViewModel extends ChangeNotifier {
     required String reason,
     String? phone,
   }) async {
-    _isLoading = true;
+    _status = VisitorStatus.loading;
     _error = null;
     notifyListeners();
 
@@ -61,12 +63,12 @@ class VisitorViewModel extends ChangeNotifier {
       final createdVisitor = await repository.createVisitor(visitor);
       _visitors.add(createdVisitor);
       _visitorMap[createdVisitor.id] = createdVisitor;
-      _isLoading = false;
+      _status = VisitorStatus.success;
       notifyListeners();
       return createdVisitor;
     } catch (e) {
       _error = 'No se ha podido registrar el visitante.';
-      _isLoading = false;
+      _status = VisitorStatus.error;
       notifyListeners();
       return null;
     }

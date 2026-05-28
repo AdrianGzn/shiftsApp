@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app/features/user/domain/models/user_model.dart';
 import 'package:app/features/user/domain/repositories/user_repository.dart';
+import 'package:app/features/user/presentation/screens/user_status.dart';
 
 class UserViewModel extends ChangeNotifier {
   final UserRepository repository;
@@ -10,14 +11,15 @@ class UserViewModel extends ChangeNotifier {
   List<UserModel> _employees = [];
   List<UserModel> get employees => _employees;
 
-  bool _isLoading = false;
-  bool get isLoading => _isLoading;
+  UserStatus _status = UserStatus.idle;
+  UserStatus get status => _status;
+  bool get isLoading => _status == UserStatus.loading;
 
   String? _error;
   String? get error => _error;
 
   Future<void> loadEmployees(int orgId) async {
-    _isLoading = true;
+    _status = UserStatus.loading;
     _error = null;
     notifyListeners();
 
@@ -26,13 +28,13 @@ class UserViewModel extends ChangeNotifier {
     } catch (e) {
       _error = 'Servidor no disponible. Inténtelo más tarde.';
     } finally {
-      _isLoading = false;
+      _status = _error != null ? UserStatus.error : UserStatus.success;
       notifyListeners();
     }
   }
 
   Future<bool> deleteAccount(String userId) async {
-    _isLoading = true;
+    _status = UserStatus.loading;
     _error = null;
     notifyListeners();
 
@@ -43,7 +45,7 @@ class UserViewModel extends ChangeNotifier {
       _error = 'No se ha podido eliminar la cuenta. Inténtelo más tarde.';
       return false;
     } finally {
-      _isLoading = false;
+      _status = _error != null ? UserStatus.error : UserStatus.success;
       notifyListeners();
     }
   }

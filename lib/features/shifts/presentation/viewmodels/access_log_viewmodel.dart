@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:app/features/shifts/domain/models/access_log.dart';
 import 'package:app/features/shifts/domain/repositories/access_log_repository.dart';
+import 'package:app/features/shifts/presentation/screens/access_log_status.dart';
 
 class AccessLogViewModel extends ChangeNotifier {
   final AccessLogRepository repository;
@@ -10,14 +11,15 @@ class AccessLogViewModel extends ChangeNotifier {
   List<AccessLog> _logs = [];
   List<AccessLog> get logs => _logs;
 
-  bool _isLoading = false;
-  bool get isLoading => _isLoading;
+  AccessLogStatus _status = AccessLogStatus.idle;
+  AccessLogStatus get status => _status;
+  bool get isLoading => _status == AccessLogStatus.loading;
 
   String? _error;
   String? get error => _error;
 
   Future<void> loadLogs() async {
-    _isLoading = true;
+    _status = AccessLogStatus.loading;
     _error = null;
     notifyListeners();
 
@@ -26,25 +28,25 @@ class AccessLogViewModel extends ChangeNotifier {
     } catch (e) {
       _error = 'Servidor no disponible. Inténtelo más tarde.';
     } finally {
-      _isLoading = false;
+      _status = _error != null ? AccessLogStatus.error : AccessLogStatus.success;
       notifyListeners();
     }
   }
 
   Future<bool> createLog(AccessLog log) async {
-    _isLoading = true;
+    _status = AccessLogStatus.loading;
     _error = null;
     notifyListeners();
 
     try {
       final newLog = await repository.createLog(log);
       _logs.insert(0, newLog);
-      _isLoading = false;
+      _status = AccessLogStatus.success;
       notifyListeners();
       return true;
     } catch (e) {
       _error = 'No se ha podido registrar la entrada o salida.';
-      _isLoading = false;
+      _status = AccessLogStatus.error;
       notifyListeners();
       return false;
     }
@@ -56,7 +58,7 @@ class AccessLogViewModel extends ChangeNotifier {
     required int idGuard,
     String? notes,
   }) async {
-    _isLoading = true;
+    _status = AccessLogStatus.loading;
     _error = null;
     notifyListeners();
 
@@ -94,12 +96,12 @@ class AccessLogViewModel extends ChangeNotifier {
       final createdLog = await repository.createLog(newLog);
       _logs.insert(0, createdLog);
       
-      _isLoading = false;
+      _status = AccessLogStatus.success;
       notifyListeners();
       return true;
     } catch (e) {
       _error = 'No se ha podido registrar la entrada o salida.';
-      _isLoading = false;
+      _status = AccessLogStatus.error;
       notifyListeners();
       return false;
     }

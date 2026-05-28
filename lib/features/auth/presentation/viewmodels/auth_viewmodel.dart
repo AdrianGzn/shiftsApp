@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app/features/auth/domain/models/auth_user.dart';
 import 'package:app/features/auth/domain/repositories/auth_repository.dart';
+import 'package:app/features/auth/presentation/screens/auth_status.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:app/core/config/api_config.dart';
@@ -12,18 +13,19 @@ class AuthViewModel extends ChangeNotifier {
       : _authRepository = authRepository;
 
   AuthUser? _user;
-  bool _isLoading = false;
+  AuthStatus _status = AuthStatus.idle;
   String? _errorMessage;
   List<Map<String, dynamic>> _organizations = [];
 
   AuthUser? get user => _user;
-  bool get isLoading => _isLoading;
+  AuthStatus get status => _status;
+  bool get isLoading => _status == AuthStatus.loading;
   bool get isAuthenticated => _user != null;
   String? get errorMessage => _errorMessage;
   List<Map<String, dynamic>> get organizations => _organizations;
 
   Future<void> tryAutoLogin() async {
-    _isLoading = true;
+    _status = AuthStatus.loading;
     notifyListeners();
 
     try {
@@ -32,12 +34,12 @@ class AuthViewModel extends ChangeNotifier {
       _user = null;
     }
 
-    _isLoading = false;
+    _status = _user != null ? AuthStatus.success : AuthStatus.error;
     notifyListeners();
   }
 
   Future<void> signInWithEmail(String email, String password) async {
-    _isLoading = true;
+    _status = AuthStatus.loading;
     _errorMessage = null;
     notifyListeners();
 
@@ -50,7 +52,7 @@ class AuthViewModel extends ChangeNotifier {
       _user = null;
     }
 
-    _isLoading = false;
+    _status = _user != null ? AuthStatus.success : AuthStatus.error;
     notifyListeners();
   }
 
@@ -61,7 +63,7 @@ class AuthViewModel extends ChangeNotifier {
     required String role,
     int? orgId,
   }) async {
-    _isLoading = true;
+    _status = AuthStatus.loading;
     _errorMessage = null;
     notifyListeners();
 
@@ -80,12 +82,12 @@ class AuthViewModel extends ChangeNotifier {
       _user = null;
     }
 
-    _isLoading = false;
+    _status = _user != null ? AuthStatus.success : AuthStatus.error;
     notifyListeners();
   }
 
   Future<void> fetchOrganizations() async {
-    _isLoading = true;
+    _status = AuthStatus.loading;
     _errorMessage = null;
     notifyListeners();
     try {
@@ -94,14 +96,14 @@ class AuthViewModel extends ChangeNotifier {
       print('AuthViewModel: Error fetching organizations: $e');
       _errorMessage = 'Servidor no disponible. Inténtelo más tarde.';
     } finally {
-      _isLoading = false;
+      _status = _errorMessage != null ? AuthStatus.error : AuthStatus.success;
       notifyListeners();
     }
   }
 
   Future<void> updateOrganizationId(int orgId) async {
     if (_user == null) return;
-    _isLoading = true;
+    _status = AuthStatus.loading;
     _errorMessage = null;
     notifyListeners();
     try {
@@ -134,14 +136,14 @@ class AuthViewModel extends ChangeNotifier {
       _errorMessage = 'No se han podido cambiar los datos del usuario.';
       rethrow;
     } finally {
-      _isLoading = false;
+      _status = _errorMessage != null ? AuthStatus.error : AuthStatus.success;
       notifyListeners();
     }
   }
 
   Future<void> updateProfile({String? name, String? email}) async {
     if (_user == null) return;
-    _isLoading = true;
+    _status = AuthStatus.loading;
     _errorMessage = null;
     notifyListeners();
     try {
@@ -178,13 +180,13 @@ class AuthViewModel extends ChangeNotifier {
       _errorMessage = 'No se han podido cambiar los datos del usuario.';
       rethrow;
     } finally {
-      _isLoading = false;
+      _status = _errorMessage != null ? AuthStatus.error : AuthStatus.success;
       notifyListeners();
     }
   }
 
   Future<void> signInWithGoogle() async {
-    _isLoading = true;
+    _status = AuthStatus.loading;
     _errorMessage = null;
     notifyListeners();
 
@@ -207,12 +209,12 @@ class AuthViewModel extends ChangeNotifier {
       _user = null;
     }
 
-    _isLoading = false;
+    _status = _user != null ? AuthStatus.success : AuthStatus.error;
     notifyListeners();
   }
 
   Future<void> signOut() async {
-    _isLoading = true;
+    _status = AuthStatus.loading;
     notifyListeners();
 
     try {
@@ -222,7 +224,7 @@ class AuthViewModel extends ChangeNotifier {
       _errorMessage = 'Error al cerrar sesión';
     }
 
-    _isLoading = false;
+    _status = AuthStatus.idle;
     notifyListeners();
   }
 
