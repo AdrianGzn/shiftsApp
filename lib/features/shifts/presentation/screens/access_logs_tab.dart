@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:app/features/auth/presentation/viewmodels/auth_viewmodel.dart';
-import 'package:app/features/shifts/presentation/viewmodels/access_log_viewmodel.dart';
+import 'package:app/features/auth/presentation/providers/auth_provider.dart';
+import 'package:app/features/shifts/presentation/providers/access_log_provider.dart';
 import 'package:app/features/shifts/domain/models/access_log.dart';
-import 'package:app/features/visitors/presentation/viewmodels/visitor_viewmodel.dart';
+import 'package:app/features/visitors/presentation/providers/visitor_provider.dart';
 
 class AccessLogsTab extends StatelessWidget {
-  final AuthViewModel authVM;
+  final AuthProvider authVM;
   final String role;
 
   const AccessLogsTab({super.key, required this.authVM, required this.role});
@@ -14,8 +14,8 @@ class AccessLogsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final logVM = Provider.of<AccessLogViewModel>(context);
-    final visitorVM = Provider.of<VisitorViewModel>(context);
+    final logVM = Provider.of<AccessLogProvider>(context);
+    final visitorVM = Provider.of<VisitorProvider>(context);
 
     List<AccessLog> displayedLogs = logVM.logs;
     if (role == 'empleado') {

@@ -1,55 +1,71 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:app/features/auth/presentation/viewmodels/auth_viewmodel.dart';
+import 'package:app/features/auth/presentation/providers/auth_provider.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+class RegisterFormProvider extends ChangeNotifier {
+  final nameController = TextEditingController();
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  final formKey = GlobalKey<FormState>();
 
-  @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
-}
+  bool initialized = false;
+  String selectedRole = 'admin';
+  int? selectedOrgId;
 
-class _RegisterScreenState extends State<RegisterScreen> {
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
-
-  bool _initialized = false;
-  String _selectedRole = 'admin';
-  int? _selectedOrgId;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<AuthViewModel>(context, listen: false).fetchOrganizations();
-    });
+  void initialize(Map<String, dynamic>? args) {
+    if (!initialized) {
+      if (args != null) {
+        emailController.text = args['email'] ?? '';
+        nameController.text = args['name'] ?? '';
+      }
+      initialized = true;
+    }
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_initialized) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      if (args != null) {
-        _emailController.text = args['email'] ?? '';
-        _nameController.text = args['name'] ?? '';
-      }
-      _initialized = true;
+  void setRole(String role) {
+    selectedRole = role;
+    if (role == 'admin') {
+      selectedOrgId = null;
     }
+    notifyListeners();
+  }
+
+  void setOrgId(int? orgId) {
+    selectedOrgId = orgId;
+    notifyListeners();
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
+    nameController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
     super.dispose();
   }
+}
 
-  void _scanOrganizationQr(List<Map<String, dynamic>> organizations) {
+class RegisterScreen extends StatelessWidget {
+  const RegisterScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (context) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Provider.of<AuthProvider>(context, listen: false).fetchOrganizations();
+        });
+        return RegisterFormProvider();
+      },
+      child: const _RegisterScreenView(),
+    );
+  }
+}
+
+class _RegisterScreenView extends StatelessWidget {
+  const _RegisterScreenView();
+
+  void _scanOrganizationQr(BuildContext context, List<Map<String, dynamic>> organizations, RegisterFormProvider formProvider) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -97,9 +113,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             if (orgId != null) {
                               final bool exists = organizations.any((org) => org['id'] == orgId);
                               if (exists) {
-                                setState(() {
-                                  _selectedOrgId = orgId;
-                                });
+                                formProvider.setOrgId(orgId);
                                 Navigator.pop(context);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
@@ -145,6 +159,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final formProvider = Provider.of<RegisterFormProvider>(context);
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    formProvider.initialize(args);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Crear Cuenta'), backgroundColor: Colors.transparent),
@@ -161,7 +178,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Form(
-                key: _formKey,
+                key: formProvider.formKey,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -182,7 +199,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: Column(
                           children: [
                             DropdownButtonFormField<String>(
-                              value: _selectedRole,
+                              value: formProvider.selectedRole,
                               decoration: const InputDecoration(
                                 labelText: 'Rol',
                                 prefixIcon: Icon(Icons.badge_outlined),
@@ -193,17 +210,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 DropdownMenuItem(value: 'empleado', child: Text('Empleado')),
                               ],
                               onChanged: (val) {
-                                setState(() {
-                                  _selectedRole = val ?? 'admin';
-                                  if (_selectedRole == 'admin') {
-                                    _selectedOrgId = null;
-                                  }
-                                });
+                                formProvider.setRole(val ?? 'admin');
                               },
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
-                              controller: _nameController,
+                              controller: formProvider.nameController,
                               decoration: const InputDecoration(
                                 labelText: 'Nombre completo',
                                 prefixIcon: Icon(Icons.person),
@@ -212,7 +224,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
-                              controller: _emailController,
+                              controller: formProvider.emailController,
                               decoration: const InputDecoration(
                                 labelText: 'Correo electrónico (Opcional)',
                                 prefixIcon: Icon(Icons.email_outlined),
@@ -229,7 +241,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
-                              controller: _passwordController,
+                              controller: formProvider.passwordController,
                               decoration: const InputDecoration(
                                 labelText: 'Contraseña',
                                 prefixIcon: Icon(Icons.lock_outline),
@@ -238,20 +250,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               validator: (val) => val == null || val.isEmpty ? 'Requerido' : null,
                             ),
                             
-                            if (_selectedRole != 'admin') ...[
+                            if (formProvider.selectedRole != 'admin') ...[
                               const SizedBox(height: 16),
-                              Consumer<AuthViewModel>(
-                                builder: (context, authVM, _) {
+                              Consumer<AuthProvider>(
+                                builder: (context, authProvider, _) {
                                   return Row(
                                     children: [
                                       Expanded(
                                         child: DropdownButtonFormField<int>(
-                                          value: _selectedOrgId,
+                                          value: formProvider.selectedOrgId,
                                           decoration: const InputDecoration(
                                             labelText: 'Organización',
                                             prefixIcon: Icon(Icons.business),
                                           ),
-                                          items: authVM.organizations.map((org) {
+                                          items: authProvider.organizations.map((org) {
                                             return DropdownMenuItem<int>(
                                               value: org['id'],
                                               child: Text(
@@ -261,12 +273,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                             );
                                           }).toList(),
                                           onChanged: (val) {
-                                            setState(() {
-                                              _selectedOrgId = val;
-                                            });
+                                            formProvider.setOrgId(val);
                                           },
                                           validator: (val) {
-                                            if (_selectedRole != 'admin' && val == null) {
+                                            if (formProvider.selectedRole != 'admin' && val == null) {
                                               return 'Selecciona organización';
                                             }
                                             return null;
@@ -275,7 +285,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       ),
                                       const SizedBox(width: 8),
                                       IconButton.filledTonal(
-                                        onPressed: () => _scanOrganizationQr(authVM.organizations),
+                                        onPressed: () => _scanOrganizationQr(context, authProvider.organizations, formProvider),
                                         icon: const Icon(Icons.qr_code_scanner),
                                         tooltip: 'Escanear QR',
                                       ),
@@ -285,9 +295,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                             ],
                             const SizedBox(height: 24),
-                            Consumer<AuthViewModel>(
-                              builder: (context, authVM, _) {
-                                if (authVM.isLoading) return const CircularProgressIndicator();
+                            Consumer<AuthProvider>(
+                              builder: (context, authProvider, _) {
+                                if (authProvider.isLoading) return const CircularProgressIndicator();
                                 return Column(
                                   children: [
                                     SizedBox(
@@ -295,15 +305,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       height: 48,
                                       child: FilledButton.icon(
                                         onPressed: () {
-                                          if (_formKey.currentState!.validate()) {
-                                            authVM.registerWithEmail(
-                                              name: _nameController.text.trim(),
-                                              email: _emailController.text.trim(),
-                                              password: _passwordController.text,
-                                              role: _selectedRole,
-                                              orgId: _selectedOrgId,
+                                          if (formProvider.formKey.currentState!.validate()) {
+                                            authProvider.registerWithEmail(
+                                              name: formProvider.nameController.text.trim(),
+                                              email: formProvider.emailController.text.trim(),
+                                              password: formProvider.passwordController.text,
+                                              role: formProvider.selectedRole,
+                                              orgId: formProvider.selectedOrgId,
                                             ).then((_) {
-                                              if (authVM.isAuthenticated) {
+                                              if (authProvider.isAuthenticated) {
                                                 Navigator.of(context).popUntil((route) => route.isFirst);
                                               }
                                             });
@@ -321,8 +331,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       height: 48,
                                       child: ElevatedButton.icon(
                                         onPressed: () {
-                                          authVM.signInWithGoogle().then((_) {
-                                            if (authVM.isAuthenticated) {
+                                          authProvider.signInWithGoogle().then((_) {
+                                            if (authProvider.isAuthenticated) {
                                               Navigator.of(context).popUntil((route) => route.isFirst);
                                             }
                                           });
@@ -331,11 +341,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         label: const Text('Registrarse con Google'),
                                       ),
                                     ),
-                                    if (authVM.errorMessage != null)
+                                    if (authProvider.errorMessage != null)
                                       Padding(
                                         padding: const EdgeInsets.only(top: 16),
                                         child: Text(
-                                          authVM.errorMessage!,
+                                          authProvider.errorMessage!,
                                           style: TextStyle(color: colorScheme.error, fontSize: 13),
                                           textAlign: TextAlign.center,
                                         ),

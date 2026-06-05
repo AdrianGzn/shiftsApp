@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:app/features/auth/presentation/viewmodels/auth_viewmodel.dart';
+import 'package:app/features/auth/presentation/providers/auth_provider.dart';
 
 class HomeDashboardTab extends StatelessWidget {
-  final AuthViewModel authVM;
+  final AuthProvider authVM;
   final String role;
   final Function(int) onTabSelected;
   final Function() onNavigateToAccessLogCreate;

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:app/features/auth/presentation/viewmodels/auth_viewmodel.dart';
-import 'package:app/features/shifts/presentation/viewmodels/access_log_viewmodel.dart';
+import 'package:app/features/auth/presentation/providers/auth_provider.dart';
+import 'package:app/features/shifts/presentation/providers/access_log_provider.dart';
 
 import 'package:app/features/home/presentation/screens/home_dashboard_tab.dart';
 import 'package:app/features/organization/presentation/screens/organization_tab.dart';
@@ -9,23 +9,34 @@ import 'package:app/features/user/presentation/screens/user_list_tab.dart';
 import 'package:app/features/shifts/presentation/screens/access_logs_tab.dart';
 import 'package:app/features/user/presentation/screens/profile_tab.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeProvider extends ChangeNotifier {
+  int selectedDrawerIndex = 0;
+
+  void setDrawerIndex(int index) {
+    selectedDrawerIndex = index;
+    notifyListeners();
+  }
+}
+
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (context) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Provider.of<AccessLogProvider>(context, listen: false).loadLogs();
+        });
+        return HomeProvider();
+      },
+      child: const _HomeScreenView(),
+    );
+  }
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  int _selectedDrawerIndex = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<AccessLogViewModel>(context, listen: false).loadLogs();
-    });
-  }
+class _HomeScreenView extends StatelessWidget {
+  const _HomeScreenView();
 
   List<Map<String, dynamic>> _getDrawerItems(String role) {
     if (role == 'admin') {
@@ -53,13 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _onTabSelected(int index) {
-    setState(() {
-      _selectedDrawerIndex = index;
-    });
-  }
-
-  void _showLogoutDialog(BuildContext context, AuthViewModel authVM) {
+  void _showLogoutDialog(BuildContext context, AuthProvider authVM) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -86,15 +91,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final authVM = Provider.of<AuthViewModel>(context);
+    final authVM = Provider.of<AuthProvider>(context);
+    final homeProvider = Provider.of<HomeProvider>(context);
     final role = authVM.user?.role ?? 'empleado';
     final drawerItems = _getDrawerItems(role);
 
-    if (_selectedDrawerIndex >= drawerItems.length) {
-      _selectedDrawerIndex = 0;
+    int currentIndex = homeProvider.selectedDrawerIndex;
+    if (currentIndex >= drawerItems.length) {
+      currentIndex = 0;
     }
 
-    final currentTitle = drawerItems[_selectedDrawerIndex]['title'] as String;
+    final currentTitle = drawerItems[currentIndex]['title'] as String;
 
     return Scaffold(
       appBar: AppBar(
@@ -137,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 itemCount: drawerItems.length,
                 itemBuilder: (context, index) {
                   final item = drawerItems[index];
-                  final isSelected = index == _selectedDrawerIndex;
+                  final isSelected = index == currentIndex;
                   return ListTile(
                     leading: Icon(
                       item['icon'] as IconData,
@@ -152,7 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     selected: isSelected,
                     onTap: () {
-                      _onTabSelected(index);
+                      homeProvider.setDrawerIndex(index);
                       Navigator.pop(context);
                     },
                   );
@@ -188,18 +195,18 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       body: SafeArea(
-        child: _buildBody(role, currentTitle, authVM),
+        child: _buildBody(context, role, currentTitle, authVM, homeProvider),
       ),
     );
   }
 
-  Widget _buildBody(String role, String title, AuthViewModel authVM) {
+  Widget _buildBody(BuildContext context, String role, String title, AuthProvider authVM, HomeProvider homeProvider) {
     switch (title) {
       case 'Inicio':
         return HomeDashboardTab(
           authVM: authVM,
           role: role,
-          onTabSelected: _onTabSelected,
+          onTabSelected: homeProvider.setDrawerIndex,
           onNavigateToAccessLogCreate: () => Navigator.pushNamed(context, '/access-logs/create'),
         );
       case 'Organización':

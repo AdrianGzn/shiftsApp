@@ -1,29 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:app/features/shifts/presentation/viewmodels/access_log_viewmodel.dart';
-import 'package:app/features/visitors/presentation/viewmodels/visitor_viewmodel.dart';
+import 'package:app/features/shifts/presentation/providers/access_log_provider.dart';
+import 'package:app/features/visitors/presentation/providers/visitor_provider.dart';
 import 'package:intl/intl.dart';
 
-class AccessLogListScreen extends StatefulWidget {
+class AccessLogListScreen extends StatelessWidget {
   const AccessLogListScreen({super.key});
 
   @override
-  State<AccessLogListScreen> createState() => _AccessLogListScreenState();
-}
-
-class _AccessLogListScreenState extends State<AccessLogListScreen> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<AccessLogViewModel>(context, listen: false).loadLogs();
-      Provider.of<VisitorViewModel>(context, listen: false).loadVisitors();
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final visitorVM = Provider.of<VisitorViewModel>(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AccessLogProvider>(context, listen: false).loadLogs();
+      Provider.of<VisitorProvider>(context, listen: false).loadVisitors();
+    });
+
+    final visitorVM = Provider.of<VisitorProvider>(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -33,14 +24,14 @@ class _AccessLogListScreenState extends State<AccessLogListScreen> {
             icon: const Icon(Icons.add),
             onPressed: () async {
               await Navigator.pushNamed(context, '/access-logs/create');
-              if (!mounted) return;
-              Provider.of<AccessLogViewModel>(context, listen: false).loadLogs();
+              if (!context.mounted) return;
+              Provider.of<AccessLogProvider>(context, listen: false).loadLogs();
               visitorVM.loadVisitors();
             },
           ),
         ],
       ),
-      body: Consumer<AccessLogViewModel>(
+      body: Consumer<AccessLogProvider>(
         builder: (context, vm, child) {
           if (vm.isLoading) {
             return const Center(child: CircularProgressIndicator());

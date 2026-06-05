@@ -3,10 +3,10 @@ import 'package:app/features/visitors/domain/models/visitor.dart';
 import 'package:app/features/visitors/domain/repositories/visitor_repository.dart';
 import 'package:app/features/visitors/presentation/screens/visitor_status.dart';
 
-class VisitorViewModel extends ChangeNotifier {
+class VisitorProvider extends ChangeNotifier {
   final VisitorRepository repository;
 
-  VisitorViewModel({required this.repository});
+  VisitorProvider({required this.repository});
 
   List<Visitor> _visitors = [];
   List<Visitor> get visitors => _visitors;

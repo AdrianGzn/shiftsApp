@@ -1,43 +1,65 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:app/features/auth/presentation/viewmodels/auth_viewmodel.dart';
-import 'package:app/features/organization/presentation/viewmodels/organization_viewmodel.dart';
+import 'package:app/features/auth/presentation/providers/auth_provider.dart';
+import 'package:app/features/organization/presentation/providers/organization_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-class OrganizationTab extends StatefulWidget {
-  final AuthViewModel authVM;
+class _CreateOrganizationFormProvider extends ChangeNotifier {
+  final formKey = GlobalKey<FormState>();
+  final nameController = TextEditingController();
+  final addressController = TextEditingController();
+  String selectedType = 'empresa';
+
+  void setType(String type) {
+    selectedType = type;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    addressController.dispose();
+    super.dispose();
+  }
+}
+
+class OrganizationTab extends StatelessWidget {
+  final AuthProvider authVM;
   final String role;
 
   const OrganizationTab({super.key, required this.authVM, required this.role});
 
   @override
-  State<OrganizationTab> createState() => _OrganizationTabState();
+  Widget build(BuildContext context) {
+    print('OrganizationTab: build. Role: $role, user: ${authVM.user?.displayName}, idOrganization: ${authVM.user?.idOrganization}');
+    return ChangeNotifierProvider(
+      create: (_) => _CreateOrganizationFormProvider(),
+      child: _OrganizationTabView(authVM: authVM, role: role),
+    );
+  }
 }
 
-class _OrganizationTabState extends State<OrganizationTab> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final orgId = widget.authVM.user?.idOrganization;
-      if (orgId != null) {
-        Provider.of<OrganizationViewModel>(context, listen: false)
-            .loadOrganization(orgId);
-      }
-    });
-  }
+class _OrganizationTabView extends StatelessWidget {
+  final AuthProvider authVM;
+  final String role;
+
+  const _OrganizationTabView({required this.authVM, required this.role});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final orgId = authVM.user?.idOrganization;
 
-    if (widget.role == 'admin' && widget.authVM.user?.idOrganization == null) {
-      return _CreateOrganizationForm(authVM: widget.authVM);
+    print('_OrganizationTabView: build. Role: $role, orgId: $orgId');
+
+    if (role == 'admin' && orgId == null) {
+      print('_OrganizationTabView: Admin without org -> show create form');
+      return _CreateOrganizationForm(authVM: authVM);
     }
 
-    final orgId = widget.authVM.user?.idOrganization;
     if (orgId == null) {
+      print('_OrganizationTabView: No orgId -> show placeholder');
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(24.0),
@@ -46,14 +68,39 @@ class _OrganizationTabState extends State<OrganizationTab> {
       );
     }
 
-    return Consumer<OrganizationViewModel>(
+    return Consumer<OrganizationProvider>(
       builder: (context, orgVM, child) {
+        print('_OrganizationTabView Consumer: isLoading=${orgVM.isLoading}, error=${orgVM.error}, org=${orgVM.organization?.name}');
+
+        // Reactively trigger load if we have an orgId but the provider hasn't loaded anything yet
+        if (!orgVM.isLoading && orgVM.organization == null && orgVM.error == null) {
+          print('_OrganizationTabView: Provider is idle with no data. Triggering loadOrganization($orgId)');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            orgVM.loadOrganization(orgId);
+          });
+          return const Center(child: CircularProgressIndicator());
+        }
+
         if (orgVM.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
 
         if (orgVM.error != null) {
-          return Center(child: Text(orgVM.error!));
+          print('_OrganizationTabView: Error -> "${orgVM.error}"');
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(orgVM.error!),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () => orgVM.loadOrganization(orgId),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Reintentar'),
+                ),
+              ],
+            ),
+          );
         }
 
         final org = orgVM.organization;
@@ -61,6 +108,7 @@ class _OrganizationTabState extends State<OrganizationTab> {
           return const Center(child: Text('No se encontraron detalles de la organización.'));
         }
 
+        print('_OrganizationTabView: Org loaded -> "${org.name}" (ID: ${org.id})');
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
@@ -106,7 +154,7 @@ class _OrganizationTabState extends State<OrganizationTab> {
                 ),
               ),
               const SizedBox(height: 24),
-              if (widget.role == 'admin') ...[
+              if (role == 'admin') ...[
                 Card(
                   elevation: 2,
                   color: Colors.white,
@@ -152,37 +200,21 @@ class _OrganizationTabState extends State<OrganizationTab> {
   }
 }
 
-class _CreateOrganizationForm extends StatefulWidget {
-  final AuthViewModel authVM;
+class _CreateOrganizationForm extends StatelessWidget {
+  final AuthProvider authVM;
 
   const _CreateOrganizationForm({required this.authVM});
 
   @override
-  State<_CreateOrganizationForm> createState() => _CreateOrganizationFormState();
-}
-
-class _CreateOrganizationFormState extends State<_CreateOrganizationForm> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _addressController = TextEditingController();
-  String _selectedType = 'empresa';
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _addressController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final orgVM = Provider.of<OrganizationViewModel>(context);
+    final orgVM = Provider.of<OrganizationProvider>(context);
+    final formProvider = Provider.of<_CreateOrganizationFormProvider>(context);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Form(
-        key: _formKey,
+        key: formProvider.formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -203,7 +235,7 @@ class _CreateOrganizationFormState extends State<_CreateOrganizationForm> {
                 child: Column(
                   children: [
                     TextFormField(
-                      controller: _nameController,
+                      controller: formProvider.nameController,
                       decoration: const InputDecoration(
                         labelText: 'Nombre de la Organización',
                         prefixIcon: Icon(Icons.business_rounded),
@@ -212,7 +244,7 @@ class _CreateOrganizationFormState extends State<_CreateOrganizationForm> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
-                      value: _selectedType,
+                      value: formProvider.selectedType,
                       decoration: const InputDecoration(
                         labelText: 'Tipo de Organización',
                         prefixIcon: Icon(Icons.category_rounded),
@@ -225,14 +257,12 @@ class _CreateOrganizationFormState extends State<_CreateOrganizationForm> {
                         DropdownMenuItem(value: 'otro', child: Text('Otro')),
                       ],
                       onChanged: (val) {
-                        setState(() {
-                          _selectedType = val ?? 'empresa';
-                        });
+                        formProvider.setType(val ?? 'empresa');
                       },
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
-                      controller: _addressController,
+                      controller: formProvider.addressController,
                       decoration: const InputDecoration(
                         labelText: 'Dirección física',
                         prefixIcon: Icon(Icons.location_on_rounded),
@@ -248,15 +278,15 @@ class _CreateOrganizationFormState extends State<_CreateOrganizationForm> {
                         height: 48,
                         child: FilledButton.icon(
                           onPressed: () async {
-                            if (_formKey.currentState!.validate()) {
+                            if (formProvider.formKey.currentState!.validate()) {
                               final created = await orgVM.createOrganization(
-                                name: _nameController.text.trim(),
-                                type: _selectedType,
-                                address: _addressController.text.trim(),
+                                name: formProvider.nameController.text.trim(),
+                                type: formProvider.selectedType,
+                                address: formProvider.addressController.text.trim(),
                               );
 
                               if (created != null) {
-                                await widget.authVM.updateOrganizationId(created.id);
+                                await authVM.updateOrganizationId(created.id);
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(

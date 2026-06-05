@@ -1,30 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:app/features/auth/presentation/viewmodels/auth_viewmodel.dart';
+import 'package:app/features/auth/presentation/providers/auth_provider.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
-
-  @override
-  State<LoginScreen> createState() => _LoginScreenState();
-}
-
-class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
+class LoginFormProvider extends ChangeNotifier {
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  final formKey = GlobalKey<FormState>();
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
     super.dispose();
   }
+}
+
+class LoginScreen extends StatelessWidget {
+  const LoginScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => LoginFormProvider(),
+      child: const _LoginScreenView(),
+    );
+  }
+}
+
+class _LoginScreenView extends StatelessWidget {
+  const _LoginScreenView();
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final formProvider = Provider.of<LoginFormProvider>(context, listen: false);
 
     return Scaffold(
       body: Container(
@@ -44,7 +54,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Form(
-                key: _formKey,
+                key: formProvider.formKey,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -83,7 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Column(
                           children: [
                             TextFormField(
-                              controller: _emailController,
+                              controller: formProvider.emailController,
                               decoration: const InputDecoration(
                                 labelText: 'Correo o Nombre de usuario',
                                 prefixIcon: Icon(Icons.person_outline),
@@ -93,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
-                              controller: _passwordController,
+                              controller: formProvider.passwordController,
                               decoration: const InputDecoration(
                                 labelText: 'Contraseña',
                                 prefixIcon: Icon(Icons.lock_outline),
@@ -102,16 +112,16 @@ class _LoginScreenState extends State<LoginScreen> {
                               validator: (val) => val == null || val.isEmpty ? 'Requerido' : null,
                             ),
                             const SizedBox(height: 24),
-                            Consumer<AuthViewModel>(
-                              builder: (context, authVM, _) {
-                                if (authVM.isLoading) {
+                            Consumer<AuthProvider>(
+                              builder: (context, authProvider, _) {
+                                if (authProvider.isLoading) {
                                   return const CircularProgressIndicator();
                                 }
 
-                                if (authVM.errorMessage != null && authVM.errorMessage!.startsWith('NEEDS_REGISTRATION')) {
-                                  final parts = authVM.errorMessage!.split('|');
+                                if (authProvider.errorMessage != null && authProvider.errorMessage!.startsWith('NEEDS_REGISTRATION')) {
+                                  final parts = authProvider.errorMessage!.split('|');
                                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                                    authVM.clearError();
+                                    authProvider.clearError();
                                     Navigator.pushNamed(context, '/register', arguments: {
                                       'email': parts.length > 1 ? parts[1] : '',
                                       'name': parts.length > 2 ? parts[2] : '',
@@ -127,10 +137,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                       height: 48,
                                       child: FilledButton(
                                         onPressed: () {
-                                          if (_formKey.currentState!.validate()) {
-                                            authVM.signInWithEmail(
-                                              _emailController.text.trim(),
-                                              _passwordController.text,
+                                          if (formProvider.formKey.currentState!.validate()) {
+                                            authProvider.signInWithEmail(
+                                              formProvider.emailController.text.trim(),
+                                              formProvider.passwordController.text,
                                             );
                                           }
                                         },
@@ -144,16 +154,16 @@ class _LoginScreenState extends State<LoginScreen> {
                                       width: double.infinity,
                                       height: 48,
                                       child: ElevatedButton.icon(
-                                        onPressed: () => authVM.signInWithGoogle(),
+                                        onPressed: () => authProvider.signInWithGoogle(),
                                         icon: const Icon(Icons.account_circle),
                                         label: const Text('Continuar con Google'),
                                       ),
                                     ),
-                                    if (authVM.errorMessage != null)
+                                    if (authProvider.errorMessage != null)
                                       Padding(
                                         padding: const EdgeInsets.only(top: 16),
                                         child: Text(
-                                          authVM.errorMessage!,
+                                          authProvider.errorMessage!,
                                           style: TextStyle(color: colorScheme.error, fontSize: 13),
                                           textAlign: TextAlign.center,
                                         ),

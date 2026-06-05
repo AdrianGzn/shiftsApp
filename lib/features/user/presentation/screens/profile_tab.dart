@@ -1,11 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:app/features/auth/presentation/viewmodels/auth_viewmodel.dart';
-import 'package:app/features/user/presentation/viewmodels/user_viewmodel.dart';
+import 'package:app/features/auth/presentation/providers/auth_provider.dart';
+import 'package:app/features/user/presentation/providers/user_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+class _EditProfileFormProvider extends ChangeNotifier {
+  final nameController = TextEditingController();
+  final emailController = TextEditingController();
+
+  _EditProfileFormProvider(String? name, String? email) {
+    nameController.text = name ?? '';
+    emailController.text = email ?? '';
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    emailController.dispose();
+    super.dispose();
+  }
+}
+
 class ProfileTab extends StatelessWidget {
-  final AuthViewModel authVM;
+  final AuthProvider authVM;
   final String role;
 
   const ProfileTab({super.key, required this.authVM, required this.role});
@@ -121,7 +138,7 @@ class ProfileTab extends StatelessWidget {
     );
   }
 
-  void _showDeleteAccountDialog(BuildContext context, AuthViewModel authVM) {
+  void _showDeleteAccountDialog(BuildContext context, AuthProvider authVM) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -138,7 +155,7 @@ class ProfileTab extends StatelessWidget {
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
               Navigator.pop(ctx);
-              final userVM = Provider.of<UserViewModel>(context, listen: false);
+              final userVM = Provider.of<UserProvider>(context, listen: false);
               final success = await userVM.deleteAccount(authVM.user!.id);
               if (success) {
                 await authVM.signOut();
@@ -169,72 +186,75 @@ class ProfileTab extends StatelessWidget {
     );
   }
 
-  void _showEditProfileDialog(BuildContext context, AuthViewModel authVM) {
-    final nameController = TextEditingController(text: authVM.user?.displayName);
-    final emailController = TextEditingController(text: authVM.user?.email);
-
+  void _showEditProfileDialog(BuildContext context, AuthProvider authVM) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Editar Perfil'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nombre',
-                  border: OutlineInputBorder(),
-                ),
+      builder: (ctx) => ChangeNotifierProvider(
+        create: (_) => _EditProfileFormProvider(authVM.user?.displayName, authVM.user?.email),
+        builder: (dialogCtx, _) {
+          final formProvider = Provider.of<_EditProfileFormProvider>(dialogCtx);
+          return AlertDialog(
+            title: const Text('Editar Perfil'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: formProvider.nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: formProvider.emailController,
+                    decoration: const InputDecoration(
+                      labelText: 'Correo electrónico',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Correo electrónico',
-                  border: OutlineInputBorder(),
-                ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  try {
+                    await authVM.updateProfile(
+                      name: formProvider.nameController.text.trim(),
+                      email: formProvider.emailController.text.trim(),
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Perfil actualizado con éxito.'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('No se han podido cambiar los datos del usuario.'),
+                          backgroundColor: Colors.red,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  }
+                },
+                child: const Text('Guardar'),
               ),
             ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              try {
-                await authVM.updateProfile(
-                  name: nameController.text.trim(),
-                  email: emailController.text.trim(),
-                );
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Perfil actualizado con éxito.'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('No se han podido cambiar los datos del usuario.'),
-                      backgroundColor: Colors.red,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text('Guardar'),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

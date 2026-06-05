@@ -1,36 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:app/features/visitors/presentation/viewmodels/visitor_viewmodel.dart';
+import 'package:app/features/visitors/presentation/providers/visitor_provider.dart';
 
-
-class VisitorRegistrationDialog extends StatefulWidget {
-  const VisitorRegistrationDialog({super.key});
-
-  @override
-  State<VisitorRegistrationDialog> createState() => _VisitorRegistrationDialogState();
-}
-
-class _VisitorRegistrationDialogState extends State<VisitorRegistrationDialog> {
-  final _dialogFormKey = GlobalKey<FormState>();
-  final _fullNameController = TextEditingController();
-  final _documentIdController = TextEditingController();
-  final _companyController = TextEditingController();
-  final _reasonController = TextEditingController();
-  final _phoneController = TextEditingController();
+class _VisitorRegistrationFormProvider extends ChangeNotifier {
+  final dialogFormKey = GlobalKey<FormState>();
+  final fullNameController = TextEditingController();
+  final documentIdController = TextEditingController();
+  final companyController = TextEditingController();
+  final reasonController = TextEditingController();
+  final phoneController = TextEditingController();
 
   @override
   void dispose() {
-    _fullNameController.dispose();
-    _documentIdController.dispose();
-    _companyController.dispose();
-    _reasonController.dispose();
-    _phoneController.dispose();
+    fullNameController.dispose();
+    documentIdController.dispose();
+    companyController.dispose();
+    reasonController.dispose();
+    phoneController.dispose();
     super.dispose();
   }
+}
+
+class VisitorRegistrationDialog extends StatelessWidget {
+  const VisitorRegistrationDialog({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final visitorVM = Provider.of<VisitorViewModel>(context);
+    return ChangeNotifierProvider(
+      create: (_) => _VisitorRegistrationFormProvider(),
+      child: const _VisitorRegistrationDialogView(),
+    );
+  }
+}
+
+class _VisitorRegistrationDialogView extends StatelessWidget {
+  const _VisitorRegistrationDialogView();
+
+  @override
+  Widget build(BuildContext context) {
+    final visitorVM = Provider.of<VisitorProvider>(context);
+    final formProvider = Provider.of<_VisitorRegistrationFormProvider>(context);
 
     return AlertDialog(
       title: const Row(
@@ -42,12 +51,12 @@ class _VisitorRegistrationDialogState extends State<VisitorRegistrationDialog> {
       ),
       content: SingleChildScrollView(
         child: Form(
-          key: _dialogFormKey,
+          key: formProvider.dialogFormKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextFormField(
-                controller: _fullNameController,
+                controller: formProvider.fullNameController,
                 decoration: const InputDecoration(
                   labelText: 'Nombre Completo *',
                   border: OutlineInputBorder(),
@@ -56,7 +65,7 @@ class _VisitorRegistrationDialogState extends State<VisitorRegistrationDialog> {
               ),
               const SizedBox(height: 12),
               TextFormField(
-                controller: _documentIdController,
+                controller: formProvider.documentIdController,
                 decoration: const InputDecoration(
                   labelText: 'ID / Documento (Opcional)',
                   border: OutlineInputBorder(),
@@ -64,7 +73,7 @@ class _VisitorRegistrationDialogState extends State<VisitorRegistrationDialog> {
               ),
               const SizedBox(height: 12),
               TextFormField(
-                controller: _companyController,
+                controller: formProvider.companyController,
                 decoration: const InputDecoration(
                   labelText: 'Empresa / Procedencia (Opcional)',
                   border: OutlineInputBorder(),
@@ -72,7 +81,7 @@ class _VisitorRegistrationDialogState extends State<VisitorRegistrationDialog> {
               ),
               const SizedBox(height: 12),
               TextFormField(
-                controller: _reasonController,
+                controller: formProvider.reasonController,
                 decoration: const InputDecoration(
                   labelText: 'Motivo de Visita *',
                   border: OutlineInputBorder(),
@@ -81,7 +90,7 @@ class _VisitorRegistrationDialogState extends State<VisitorRegistrationDialog> {
               ),
               const SizedBox(height: 12),
               TextFormField(
-                controller: _phoneController,
+                controller: formProvider.phoneController,
                 decoration: const InputDecoration(
                   labelText: 'Teléfono (Opcional)',
                   border: OutlineInputBorder(),
@@ -101,18 +110,18 @@ class _VisitorRegistrationDialogState extends State<VisitorRegistrationDialog> {
           onPressed: visitorVM.isLoading
               ? null
               : () async {
-                  if (_dialogFormKey.currentState!.validate()) {
+                  if (formProvider.dialogFormKey.currentState!.validate()) {
                     final newVisitor = await visitorVM.addVisitor(
-                      fullName: _fullNameController.text.trim(),
-                      documentId: _documentIdController.text.isNotEmpty
-                          ? _documentIdController.text.trim()
+                      fullName: formProvider.fullNameController.text.trim(),
+                      documentId: formProvider.documentIdController.text.isNotEmpty
+                          ? formProvider.documentIdController.text.trim()
                           : null,
-                      company: _companyController.text.isNotEmpty
-                          ? _companyController.text.trim()
+                      company: formProvider.companyController.text.isNotEmpty
+                          ? formProvider.companyController.text.trim()
                           : null,
-                      reason: _reasonController.text.trim(),
-                      phone: _phoneController.text.isNotEmpty
-                          ? _phoneController.text.trim()
+                      reason: formProvider.reasonController.text.trim(),
+                      phone: formProvider.phoneController.text.isNotEmpty
+                          ? formProvider.phoneController.text.trim()
                           : null,
                     );
 

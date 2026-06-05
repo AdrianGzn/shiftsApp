@@ -3,10 +3,10 @@ import 'package:app/features/user/domain/models/user_model.dart';
 import 'package:app/features/user/domain/repositories/user_repository.dart';
 import 'package:app/features/user/presentation/screens/user_status.dart';
 
-class UserViewModel extends ChangeNotifier {
+class UserProvider extends ChangeNotifier {
   final UserRepository repository;
 
-  UserViewModel({required this.repository});
+  UserProvider({required this.repository});
 
   List<UserModel> _employees = [];
   List<UserModel> get employees => _employees;

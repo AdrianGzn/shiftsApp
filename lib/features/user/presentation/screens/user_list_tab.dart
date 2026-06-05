@@ -1,39 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:app/features/auth/presentation/viewmodels/auth_viewmodel.dart';
-import 'package:app/features/user/presentation/viewmodels/user_viewmodel.dart';
+import 'package:app/features/auth/presentation/providers/auth_provider.dart';
+import 'package:app/features/user/presentation/providers/user_provider.dart';
 
-class UserListTab extends StatefulWidget {
-  final AuthViewModel authVM;
+class UserListTab extends StatelessWidget {
+  final AuthProvider authVM;
   final String role;
 
   const UserListTab({super.key, required this.authVM, required this.role});
 
   @override
-  State<UserListTab> createState() => _UserListTabState();
-}
-
-class _UserListTabState extends State<UserListTab> {
-  @override
-  void initState() {
-    super.initState();
+  Widget build(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final orgId = widget.authVM.user?.idOrganization;
+      final orgId = authVM.user?.idOrganization;
       if (orgId != null) {
-        Provider.of<UserViewModel>(context, listen: false).loadEmployees(orgId);
+        Provider.of<UserProvider>(context, listen: false).loadEmployees(orgId);
       }
     });
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    final orgId = widget.authVM.user?.idOrganization;
+    final orgId = authVM.user?.idOrganization;
 
     if (orgId == null) {
       return const Center(child: Text('Debes tener una organización asociada para ver los empleados.'));
     }
 
-    return Consumer<UserViewModel>(
+    return Consumer<UserProvider>(
       builder: (context, userVM, child) {
         if (userVM.isLoading) {
           return const Center(child: CircularProgressIndicator());

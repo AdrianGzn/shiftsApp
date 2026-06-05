@@ -1,53 +1,78 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:app/features/shifts/presentation/viewmodels/access_log_viewmodel.dart';
-import 'package:app/features/auth/presentation/viewmodels/auth_viewmodel.dart';
-import 'package:app/features/visitors/presentation/viewmodels/visitor_viewmodel.dart';
+import 'package:app/features/shifts/presentation/providers/access_log_provider.dart';
+import 'package:app/features/auth/presentation/providers/auth_provider.dart';
+import 'package:app/features/visitors/presentation/providers/visitor_provider.dart';
 import 'package:app/features/visitors/domain/models/visitor.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'dart:convert';
 import 'package:app/features/visitors/presentation/screens/visitor_registration_dialog.dart';
 
-class AccessLogFormScreen extends StatefulWidget {
-  const AccessLogFormScreen({super.key});
+class AccessLogFormProvider extends ChangeNotifier {
+  final formKey = GlobalKey<FormState>();
+  String personType = 'empleado';
+  final idController = TextEditingController();
+  final notesController = TextEditingController();
 
-  @override
-  State<AccessLogFormScreen> createState() => _AccessLogFormScreenState();
-}
+  TextEditingController? visitorNameController;
+  Visitor? selectedVisitor;
 
-class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
-  final _formKey = GlobalKey<FormState>();
-  String _personType = 'empleado';
-  final _idController = TextEditingController();
-  final _notesController = TextEditingController();
+  void setPersonType(String type) {
+    personType = type;
+    notifyListeners();
+  }
 
-  TextEditingController? _visitorNameController;
-  Visitor? _selectedVisitor;
+  void setPersonId(String id) {
+    idController.text = id;
+    notifyListeners();
+  }
+
+  void setSelectedVisitor(Visitor visitor, String name) {
+    selectedVisitor = visitor;
+    visitorNameController?.text = name;
+    notifyListeners();
+  }
 
   @override
   void dispose() {
-    _idController.dispose();
-    _notesController.dispose();
+    idController.dispose();
+    notesController.dispose();
     super.dispose();
   }
+}
 
-  void _scanQR() {
+class AccessLogFormScreen extends StatelessWidget {
+  const AccessLogFormScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => AccessLogFormProvider(),
+      child: const _AccessLogFormScreenView(),
+    );
+  }
+}
+
+class _AccessLogFormScreenView extends StatelessWidget {
+  const _AccessLogFormScreenView();
+
+  void _scanQR(BuildContext context, AccessLogFormProvider formProvider) {
     bool isProcessing = false;
     final MobileScannerController cameraController = MobileScannerController();
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) {
+      builder: (modalContext) {
         return SizedBox(
-          height: MediaQuery.of(context).size.height * 0.6,
+          height: MediaQuery.of(modalContext).size.height * 0.6,
           child: Column(
             children: [
               AppBar(
                 title: const Text('Escanear QR'),
                 leading: CloseButton(onPressed: () {
                   cameraController.stop();
-                  Navigator.pop(context);
+                  Navigator.pop(modalContext);
                 }),
               ),
               Expanded(
@@ -65,39 +90,36 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
                         try {
                           final data = jsonDecode(code);
                           if (data['type'] != null && data['id'] != null) {
-                            setState(() {
-                              _personType = data['type'] == 'visitor' ? 'visitante' : 'empleado';
-                              if (_personType == 'empleado') {
-                                _idController.text = data['id'].toString();
+                            final type = data['type'] == 'visitor' ? 'visitante' : 'empleado';
+                            formProvider.setPersonType(type);
+                            
+                            if (type == 'empleado') {
+                              formProvider.setPersonId(data['id'].toString());
+                            } else {
+                              final visitorVM = Provider.of<VisitorProvider>(context, listen: false);
+                              final visitorId = int.tryParse(data['id'].toString()) ?? 0;
+                              final visitorObj = visitorVM.visitorMap[visitorId];
+                              if (visitorObj != null) {
+                                formProvider.setSelectedVisitor(visitorObj, visitorObj.fullName);
                               } else {
-                                final visitorVM = Provider.of<VisitorViewModel>(context, listen: false);
-                                final visitorId = int.tryParse(data['id'].toString()) ?? 0;
-                                final visitorObj = visitorVM.visitorMap[visitorId];
-                                if (visitorObj != null) {
-                                  _selectedVisitor = visitorObj;
-                                  _visitorNameController?.text = visitorObj.fullName;
-                                } else {
+                                if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(content: Text('Visitante con ID $visitorId no encontrado localmente.')),
                                   );
                                 }
                               }
-                            });
+                            }
                           } else {
-                            setState(() {
-                              _personType = 'empleado';
-                              _idController.text = code;
-                            });
+                            formProvider.setPersonType('empleado');
+                            formProvider.setPersonId(code);
                           }
                         } catch (e) {
-                          setState(() {
-                            _personType = 'empleado';
-                            _idController.text = code;
-                          });
+                          formProvider.setPersonType('empleado');
+                          formProvider.setPersonId(code);
                         }
                       }
-                      if (mounted) {
-                        Navigator.pop(context);
+                      if (modalContext.mounted) {
+                        Navigator.pop(modalContext);
                       }
                     }
                   },
@@ -112,20 +134,18 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
     });
   }
 
-
-
-  void _submit() async {
-    if (_formKey.currentState!.validate()) {
-      final authVM = Provider.of<AuthViewModel>(context, listen: false);
-      final logVM = Provider.of<AccessLogViewModel>(context, listen: false);
+  void _submit(BuildContext context, AccessLogFormProvider formProvider) async {
+    if (formProvider.formKey.currentState!.validate()) {
+      final authVM = Provider.of<AuthProvider>(context, listen: false);
+      final logVM = Provider.of<AccessLogProvider>(context, listen: false);
 
       final idGuard = int.tryParse(authVM.user?.id ?? '0') ?? 0;
 
       int? idUser;
       int? idVisitor;
       
-      if (_personType == 'empleado') {
-        final personId = int.tryParse(_idController.text);
+      if (formProvider.personType == 'empleado') {
+        final personId = int.tryParse(formProvider.idController.text);
         if (personId == null) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Por favor, ingresa un ID válido')),
@@ -134,28 +154,28 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
         }
         idUser = personId;
       } else {
-        if (_selectedVisitor == null || _visitorNameController?.text != _selectedVisitor!.fullName) {
+        if (formProvider.selectedVisitor == null || formProvider.visitorNameController?.text != formProvider.selectedVisitor!.fullName) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Por favor, selecciona un visitante válido de la lista o regístralo')),
           );
           return;
         }
-        idVisitor = _selectedVisitor!.id;
+        idVisitor = formProvider.selectedVisitor!.id;
       }
 
       final success = await logVM.registerAccess(
         idUser: idUser,
         idVisitor: idVisitor,
         idGuard: idGuard,
-        notes: _notesController.text.isNotEmpty ? _notesController.text : null,
+        notes: formProvider.notesController.text.isNotEmpty ? formProvider.notesController.text : null,
       );
 
-      if (success && mounted) {
+      if (success && context.mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Registro procesado exitosamente')),
         );
-      } else if (mounted) {
+      } else if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error al guardar: ${logVM.error}')),
         );
@@ -165,7 +185,8 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = context.watch<AccessLogViewModel>().isLoading;
+    final isLoading = context.watch<AccessLogProvider>().isLoading;
+    final formProvider = Provider.of<AccessLogFormProvider>(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -173,7 +194,7 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.qr_code_scanner),
-            onPressed: _scanQR,
+            onPressed: () => _scanQR(context, formProvider),
             tooltip: 'Escanear QR',
           ),
         ],
@@ -181,12 +202,12 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
-          key: _formKey,
+          key: formProvider.formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               DropdownButtonFormField<String>(
-                value: _personType,
+                value: formProvider.personType,
                 decoration: const InputDecoration(
                   labelText: 'Tipo de Persona',
                   border: OutlineInputBorder(),
@@ -197,22 +218,20 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
                 ],
                 onChanged: (value) {
                   if (value != null) {
-                    setState(() {
-                      _personType = value;
-                    });
+                    formProvider.setPersonType(value);
                   }
                 },
               ),
               const SizedBox(height: 16),
-              if (_personType == 'empleado') ...[
+              if (formProvider.personType == 'empleado') ...[
                 TextFormField(
-                  controller: _idController,
+                  controller: formProvider.idController,
                   decoration: InputDecoration(
                     labelText: 'ID / Documento del Empleado',
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.qr_code_scanner),
-                      onPressed: _scanQR,
+                      onPressed: () => _scanQR(context, formProvider),
                     ),
                   ),
                   keyboardType: TextInputType.number,
@@ -227,7 +246,7 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
                   },
                 ),
               ] else ...[
-                Consumer<VisitorViewModel>(
+                Consumer<VisitorProvider>(
                   builder: (context, visitorVM, child) {
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -246,12 +265,10 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
                             },
                             displayStringForOption: (Visitor option) => option.fullName,
                             onSelected: (Visitor selection) {
-                              setState(() {
-                                _selectedVisitor = selection;
-                              });
+                              formProvider.setSelectedVisitor(selection, selection.fullName);
                             },
                             fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
-                              _visitorNameController = textEditingController;
+                              formProvider.visitorNameController = textEditingController;
                               return TextFormField(
                                 controller: textEditingController,
                                 focusNode: focusNode,
@@ -264,7 +281,7 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
                                   if (value == null || value.isEmpty) {
                                     return 'Requerido';
                                   }
-                                  if (_selectedVisitor == null || _selectedVisitor!.fullName != value) {
+                                  if (formProvider.selectedVisitor == null || formProvider.selectedVisitor!.fullName != value) {
                                     return 'Selecciona un visitante de las sugerencias o créalo';
                                   }
                                   return null;
@@ -286,10 +303,7 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
                                   builder: (context) => const VisitorRegistrationDialog(),
                                 );
                                 if (newVisitor != null) {
-                                  setState(() {
-                                    _selectedVisitor = newVisitor;
-                                    _visitorNameController?.text = newVisitor.fullName;
-                                  });
+                                  formProvider.setSelectedVisitor(newVisitor, newVisitor.fullName);
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
@@ -311,7 +325,7 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
               ],
               const SizedBox(height: 16),
               TextFormField(
-                controller: _notesController,
+                controller: formProvider.notesController,
                 decoration: const InputDecoration(
                   labelText: 'Notas (Opcional)',
                   border: OutlineInputBorder(),
@@ -320,7 +334,7 @@ class _AccessLogFormScreenState extends State<AccessLogFormScreen> {
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: isLoading ? null : _submit,
+                onPressed: isLoading ? null : () => _submit(context, formProvider),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

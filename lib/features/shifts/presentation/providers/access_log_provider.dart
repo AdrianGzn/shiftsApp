@@ -3,10 +3,10 @@ import 'package:app/features/shifts/domain/models/access_log.dart';
 import 'package:app/features/shifts/domain/repositories/access_log_repository.dart';
 import 'package:app/features/shifts/presentation/screens/access_log_status.dart';
 
-class AccessLogViewModel extends ChangeNotifier {
+class AccessLogProvider extends ChangeNotifier {
   final AccessLogRepository repository;
 
-  AccessLogViewModel({required this.repository});
+  AccessLogProvider({required this.repository});
 
   List<AccessLog> _logs = [];
   List<AccessLog> get logs => _logs;

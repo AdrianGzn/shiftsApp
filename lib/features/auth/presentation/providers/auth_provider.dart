@@ -6,10 +6,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:app/core/config/api_config.dart';
 
-class AuthViewModel extends ChangeNotifier {
+class AuthProvider extends ChangeNotifier {
   final AuthRepository _authRepository;
 
-  AuthViewModel({required AuthRepository authRepository})
+  AuthProvider({required AuthRepository authRepository})
       : _authRepository = authRepository;
 
   AuthUser? _user;
@@ -46,7 +46,7 @@ class AuthViewModel extends ChangeNotifier {
     try {
       _user = await _authRepository.signInWithEmail(email, password);
     } catch (e, stackTrace) {
-      print('AuthViewModel: Error en signInWithEmail -> $e');
+      print('AuthProvider: Error en signInWithEmail -> $e');
       print(stackTrace);
       _errorMessage = 'Nombre o contraseña no válidos';
       _user = null;
@@ -76,7 +76,7 @@ class AuthViewModel extends ChangeNotifier {
         orgId: orgId,
       );
     } catch (e, stackTrace) {
-      print('AuthViewModel: Error en registerWithEmail -> $e');
+      print('AuthProvider: Error en registerWithEmail -> $e');
       print(stackTrace);
       _errorMessage = 'No se ha podido registrar el usuario. Inténtelo más tarde.';
       _user = null;
@@ -93,7 +93,7 @@ class AuthViewModel extends ChangeNotifier {
     try {
       _organizations = await _authRepository.getOrganizations();
     } catch (e) {
-      print('AuthViewModel: Error fetching organizations: $e');
+      print('AuthProvider: Error fetching organizations: $e');
       _errorMessage = 'Servidor no disponible. Inténtelo más tarde.';
     } finally {
       _status = _errorMessage != null ? AuthStatus.error : AuthStatus.success;
@@ -108,7 +108,7 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       final url = Uri.parse('${ApiConfig.baseUrl}/users/${_user!.id}');
-      print('AuthViewModel: updateOrganizationId -> PUT $url');
+      print('AuthProvider: updateOrganizationId -> PUT $url');
       final response = await http.put(
         url,
         headers: {
@@ -117,7 +117,7 @@ class AuthViewModel extends ChangeNotifier {
         },
         body: jsonEncode({'idOrganization': orgId}),
       );
-      print('AuthViewModel: updateOrganizationId response -> Status ${response.statusCode}');
+      print('AuthProvider: updateOrganizationId response -> Status ${response.statusCode}');
       if (response.statusCode == 200) {
         _user = AuthUser(
           id: _user!.id,
@@ -132,7 +132,7 @@ class AuthViewModel extends ChangeNotifier {
         throw Exception('Error al asociar organización: ${response.body}');
       }
     } catch (e) {
-      print('AuthViewModel: Error updating user organization: $e');
+      print('AuthProvider: Error updating user organization: $e');
       _errorMessage = 'No se han podido cambiar los datos del usuario.';
       rethrow;
     } finally {
@@ -148,7 +148,7 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       final url = Uri.parse('${ApiConfig.baseUrl}/users/${_user!.id}');
-      print('AuthViewModel: updateProfile -> PUT $url');
+      print('AuthProvider: updateProfile -> PUT $url');
       final Map<String, dynamic> body = {};
       if (name != null && name.isNotEmpty) body['name'] = name;
       if (email != null && email.isNotEmpty) body['email'] = email;
@@ -161,7 +161,7 @@ class AuthViewModel extends ChangeNotifier {
         },
         body: jsonEncode(body),
       );
-      print('AuthViewModel: updateProfile response -> Status ${response.statusCode}');
+      print('AuthProvider: updateProfile response -> Status ${response.statusCode}');
       if (response.statusCode == 200) {
         _user = AuthUser(
           id: _user!.id,
@@ -176,7 +176,7 @@ class AuthViewModel extends ChangeNotifier {
         throw Exception('Error al actualizar perfil: ${response.body}');
       }
     } catch (e) {
-      print('AuthViewModel: Error updating profile: $e');
+      print('AuthProvider: Error updating profile: $e');
       _errorMessage = 'No se han podido cambiar los datos del usuario.';
       rethrow;
     } finally {
@@ -193,11 +193,11 @@ class AuthViewModel extends ChangeNotifier {
     try {
       _user = await _authRepository.signInWithGoogle();
       if (_user == null) {
-        print('AuthViewModel: signInWithGoogle -> Usuario canceló u obtuvo nulo');
+        print('AuthProvider: signInWithGoogle -> Usuario canceló u obtuvo nulo');
         _errorMessage = 'Inicio de sesión cancelado';
       }
     } catch (e, stackTrace) {
-      print('AuthViewModel: Error en signInWithGoogle -> $e');
+      print('AuthProvider: Error en signInWithGoogle -> $e');
       if (!e.toString().contains('NEEDS_REGISTRATION')) {
         print(stackTrace);
         _errorMessage = 'No se pudo iniciar sesión con Google. Inténtelo más tarde.';
